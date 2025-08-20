@@ -38,18 +38,17 @@ const TabsLayout = () => {
         tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: "white",
-          position: "absolute",
           borderTopColor: "#0061FF1A",
           borderTopWidth: 1,
           minHeight: 70,
         },
+        headerShown: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
-          headerShown: false,
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} icon={icons.home} title="Home" />
           ),
@@ -59,7 +58,6 @@ const TabsLayout = () => {
         name="explore"
         options={{
           title: "Explore",
-          headerShown: false,
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} icon={icons.search} title="Explore" />
           ),
@@ -69,7 +67,6 @@ const TabsLayout = () => {
         name="profile"
         options={{
           title: "Profile",
-          headerShown: false,
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} icon={icons.person} title="Profile" />
           ),

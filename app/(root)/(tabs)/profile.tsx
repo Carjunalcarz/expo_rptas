@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { router } from "expo-router";
 
 import { logout } from "@/lib/appwrite";
 import { useGlobalContext } from "@/lib/global-provider";
 
 import icons from "@/constants/icons";
 import { settings } from "@/constants/data";
+import images from "@/constants/images";
 
 interface SettingsItemProp {
   icon: ImageSourcePropType;
@@ -58,6 +60,14 @@ const Profile = () => {
     }
   };
 
+  const handleSettingsNavigation = (route: string, title: string) => {
+    if (title === "Profile") {
+      // Don't navigate if already on profile
+      return;
+    }
+    router.push(route as any);
+  };
+
   return (
     <SafeAreaView className="h-full bg-white">
       <ScrollView
@@ -72,7 +82,7 @@ const Profile = () => {
         <View className="flex flex-row justify-center mt-5">
           <View className="flex flex-col items-center relative mt-5">
             <Image
-              source={{ uri: user?.avatar }}
+              source={images.avatar}
               className="size-44 relative rounded-full"
             />
             <TouchableOpacity className="absolute bottom-11 right-2">
@@ -83,14 +93,19 @@ const Profile = () => {
           </View>
         </View>
 
-        <View className="flex flex-col mt-10">
+        {/* <View className="flex flex-col mt-10">
           <SettingsItem icon={icons.calendar} title="My Bookings" />
           <SettingsItem icon={icons.wallet} title="Payments" />
-        </View>
+        </View> */}
 
         <View className="flex flex-col mt-5 border-t pt-5 border-primary-200">
-          {settings.slice(2).map((item, index) => (
-            <SettingsItem key={index} {...item} />
+          {settings.slice(0).map((item, index) => (
+            <SettingsItem
+              key={index}
+              icon={item.icon}
+              title={item.title}
+              onPress={() => handleSettingsNavigation(item.route, item.title)}
+            />
           ))}
         </View>
 

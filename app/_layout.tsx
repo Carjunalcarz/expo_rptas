@@ -7,6 +7,7 @@ import "./global.css";
 import GlobalProvider from "@/lib/global-provider";
 
 export default function RootLayout() {
+  
   const [fontsLoaded] = useFonts({
     "Rubik-Bold": require("../assets/fonts/Rubik-Bold.ttf"),
     "Rubik-ExtraBold": require("../assets/fonts/Rubik-ExtraBold.ttf"),
