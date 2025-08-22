@@ -21,8 +21,11 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "package": "com.ajncarz.restate"
     },
     "web": {
       "bundler": "metro",
@@ -56,6 +59,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "bbad0fb4-65a5-4a05-a392-35bc37803e8f"
+      }
     }
   }
 }

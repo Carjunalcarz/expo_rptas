@@ -4,28 +4,52 @@ import {
   TextInput
 } from 'react-native'
 import React from 'react'
+import { useForm, Controller } from 'react-hook-form'
+
+interface LandFormData {
+  owner: string;
+  titleNumber: string;
+  lotNumber: string;
+  blockNumber: string;
+  surveyNumber: string;
+  tdnArpNumber: string;
+  area: string;
+}
 
 interface LandReferenceFormProps {
-  landData: {
-    owner: string;
-    titleNumber: string;
-    lotNumber: string;
-    blockNumber: string;
-    surveyNumber: string;
-    tdnArpNumber: string;
-    area: string;
-  };
-  onLandChange: (field: string, value: string) => void;
+  defaultValues?: LandFormData;
+  onFormChange?: (data: LandFormData) => void;
 }
 
 const LandReferenceForm: React.FC<LandReferenceFormProps> = ({
-  landData,
-  onLandChange,
+  defaultValues = {
+    owner: '',
+    titleNumber: '',
+    lotNumber: '',
+    blockNumber: '',
+    surveyNumber: '',
+    tdnArpNumber: '',
+    area: '',
+  },
+  onFormChange,
 }) => {
+  const { control, watch, reset, formState: { errors } } = useForm<LandFormData>({
+    defaultValues,
+    mode: 'onChange'
+  });
+
+  // Watch all form values and call onFormChange when they change
+  const watchedValues = watch();
+
+  // Simple useEffect to call onFormChange when form values change
+  React.useEffect(() => {
+    if (onFormChange) {
+      onFormChange(watchedValues);
+    }
+  }, [watchedValues, onFormChange]);
   const renderInput = (
+    name: keyof LandFormData,
     label: string,
-    value: string,
-    onChangeText: (text: string) => void,
     placeholder?: string,
     keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default'
   ) => (
@@ -33,14 +57,41 @@ const LandReferenceForm: React.FC<LandReferenceFormProps> = ({
       <Text className="text-base font-rubik-medium text-black-300 mb-2">
         {label} <Text className="text-red-500">*</Text>
       </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-        className="border border-gray-300 rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12"
-        keyboardType={keyboardType}
-        textAlignVertical="center"
+      <Controller
+        control={control}
+        name={name}
+        rules={{
+          required: `${label} is required`,
+          minLength: {
+            value: 1,
+            message: `${label} cannot be empty`
+          },
+          ...(keyboardType === 'numeric' && {
+            pattern: {
+              value: /^[0-9.]+$/,
+              message: `${label} must be a valid number`
+            }
+          })
+        }}
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
+              errors[name] ? 'border-red-500' : 'border-gray-300'
+            }`}
+            keyboardType={keyboardType}
+            textAlignVertical="center"
+          />
+        )}
       />
+      {errors[name] && (
+        <Text className="text-red-500 text-sm font-rubik mt-1">
+          {errors[name]?.message}
+        </Text>
+      )}
     </View>
   );
 
@@ -48,19 +99,19 @@ const LandReferenceForm: React.FC<LandReferenceFormProps> = ({
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <Text className="text-lg font-rubik-bold text-black-300 mb-4">Land Reference</Text>
       
-      {renderInput('Owner', landData.owner, (text) => onLandChange('owner', text), 'Land owner name')}
+      {renderInput('owner', 'Owner', 'Land owner name')}
       
-      {renderInput('OCT/TCT/CLOA/CSC No.', landData.titleNumber, (text) => onLandChange('titleNumber', text), 'Title number')}
+      {renderInput('titleNumber', 'OCT/TCT/CLOA/CSC No.', 'Title number')}
       
-      {renderInput('Lot No.', landData.lotNumber, (text) => onLandChange('lotNumber', text), 'Lot number', 'numeric')}
+      {renderInput('lotNumber', 'Lot No.', 'Lot number', 'numeric')}
       
-      {renderInput('Block No.', landData.blockNumber, (text) => onLandChange('blockNumber', text), 'Block number', 'numeric')}
+      {renderInput('blockNumber', 'Block No.', 'Block number', 'numeric')}
       
-      {renderInput('Survey No.', landData.surveyNumber, (text) => onLandChange('surveyNumber', text), 'Survey number')}
+      {renderInput('surveyNumber', 'Survey No.', 'Survey number')}
       
-      {renderInput('TDN/ARP No.', landData.tdnArpNumber, (text) => onLandChange('tdnArpNumber', text), 'Tax Declaration/Assessment Roll Page number')}
+      {renderInput('tdnArpNumber', 'TDN/ARP No.', 'Tax Declaration/Assessment Roll Page number')}
       
-      {renderInput('Area', landData.area, (text) => onLandChange('area', text), 'Area in square meters', 'numeric')}
+      {renderInput('area', 'Area', 'Area in square meters', 'numeric')}
     </View>
   );
 };

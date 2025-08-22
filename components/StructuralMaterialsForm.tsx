@@ -6,6 +6,7 @@ import {
   ScrollView
 } from 'react-native'
 import React, { useState } from 'react'
+import { useForm, Controller, useFieldArray } from 'react-hook-form'
 
 interface FloorMaterial {
   id: string;
@@ -21,55 +22,112 @@ interface WallPartition {
   otherSpecify: string;
 }
 
-interface StructuralMaterialsFormProps {
-  structuralData: {
-    foundation: {
-      reinforceConcrete: boolean;
-      plainConcrete: boolean;
-      others: boolean;
-      othersSpecify: string;
-    };
-    columns: {
-      steel: boolean;
-      reinforceConcrete: boolean;
-      wood: boolean;
-      others: boolean;
-      othersSpecify: string;
-    };
-    beams: {
-      steel: boolean;
-      reinforceConcrete: boolean;
-      others: boolean;
-      othersSpecify: string;
-    };
-    trussFraming: {
-      steel: boolean;
-      wood: boolean;
-      others: boolean;
-      othersSpecify: string;
-    };
-    roof: {
-      reinforceConcrete: boolean;
-      tiles: boolean;
-      giSheet: boolean;
-      aluminum: boolean;
-      asbestos: boolean;
-      longSpan: boolean;
-      concreteDesk: boolean;
-      nipaAnahawCogon: boolean;
-      others: boolean;
-      othersSpecify: string;
-    };
-    flooring: FloorMaterial[];
-    wallsPartitions: WallPartition[];
+interface StructuralFormData {
+  foundation: {
+    reinforceConcrete: boolean;
+    plainConcrete: boolean;
+    others: boolean;
+    othersSpecify: string;
   };
-  onStructuralChange: (field: string, value: any) => void;
+  columns: {
+    steel: boolean;
+    reinforceConcrete: boolean;
+    wood: boolean;
+    others: boolean;
+    othersSpecify: string;
+  };
+  beams: {
+    steel: boolean;
+    reinforceConcrete: boolean;
+    others: boolean;
+    othersSpecify: string;
+  };
+  trussFraming: {
+    steel: boolean;
+    wood: boolean;
+    others: boolean;
+    othersSpecify: string;
+  };
+  roof: {
+    reinforceConcrete: boolean;
+    tiles: boolean;
+    giSheet: boolean;
+    aluminum: boolean;
+    asbestos: boolean;
+    longSpan: boolean;
+    concreteDesk: boolean;
+    nipaAnahawCogon: boolean;
+    others: boolean;
+    othersSpecify: string;
+  };
+  flooring: FloorMaterial[];
+  wallsPartitions: WallPartition[];
+}
+
+interface StructuralMaterialsFormProps {
+  defaultValues?: StructuralFormData;
+  onFormChange?: (data: StructuralFormData) => void;
 }
 
 const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
-  structuralData,
-  onStructuralChange,
+  defaultValues = {
+    foundation: {
+      reinforceConcrete: false,
+      plainConcrete: false,
+      others: false,
+      othersSpecify: '',
+    },
+    columns: {
+      steel: false,
+      reinforceConcrete: false,
+      wood: false,
+      others: false,
+      othersSpecify: '',
+    },
+    beams: {
+      steel: false,
+      reinforceConcrete: false,
+      others: false,
+      othersSpecify: '',
+    },
+    trussFraming: {
+      steel: false,
+      wood: false,
+      others: false,
+      othersSpecify: '',
+    },
+    roof: {
+      reinforceConcrete: false,
+      tiles: false,
+      giSheet: false,
+      aluminum: false,
+      asbestos: false,
+      longSpan: false,
+      concreteDesk: false,
+      nipaAnahawCogon: false,
+      others: false,
+      othersSpecify: '',
+    },
+    flooring: [{ id: '1', floorName: 'Ground Floor', material: '', otherSpecify: '' }],
+    wallsPartitions: [{ id: '1', wallName: 'Main Wall', material: '', otherSpecify: '' }],
+  },
+  onFormChange,
 }) => {
+  const { control, watch, reset, formState: { errors } } = useForm<StructuralFormData>({
+    defaultValues,
+    mode: 'onChange'
+  });
+
+  const { fields: flooringFields, append: appendFlooring, remove: removeFlooring } = useFieldArray({
+    control,
+    name: 'flooring'
+  });
+
+  const { fields: wallsFields, append: appendWall, remove: removeWall } = useFieldArray({
+    control,
+    name: 'wallsPartitions'
+  });
+
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
     foundation: true,
     columns: false,
@@ -80,6 +138,16 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     walls: false,
   });
 
+  // Watch all form values and call onFormChange when they change
+  const watchedValues = watch();
+
+  // Simple useEffect to call onFormChange when form values change
+  React.useEffect(() => {
+    if (onFormChange) {
+      onFormChange(watchedValues);
+    }
+  }, [watchedValues, onFormChange]);
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -87,69 +155,32 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     }));
   };
 
-  const handleCheckboxChange = (section: string, field: string, value: boolean) => {
-    const updatedSection = {
-      ...structuralData[section as keyof typeof structuralData],
-      [field]: value
-    };
-    onStructuralChange(section, updatedSection);
-  };
-
-  const handleOthersSpecifyChange = (section: string, value: string) => {
-    const updatedSection = {
-      ...structuralData[section as keyof typeof structuralData],
-      othersSpecify: value
-    };
-    onStructuralChange(section, updatedSection);
-  };
-
   const addFloorMaterial = () => {
     const newFloor: FloorMaterial = {
       id: Date.now().toString(),
-      floorName: `Floor ${structuralData.flooring.length + 1}`,
+      floorName: `Floor ${flooringFields.length + 1}`,
       material: '',
       otherSpecify: '',
     };
-    const updatedFlooring = [...structuralData.flooring, newFloor];
-    onStructuralChange('flooring', updatedFlooring);
-  };
-
-  const removeFloorMaterial = (id: string) => {
-    const updatedFlooring = structuralData.flooring.filter(floor => floor.id !== id);
-    onStructuralChange('flooring', updatedFlooring);
-  };
-
-  const updateFloorMaterial = (id: string, field: keyof FloorMaterial, value: string) => {
-    const updatedFlooring = structuralData.flooring.map(floor =>
-      floor.id === id ? { ...floor, [field]: value } : floor
-    );
-    onStructuralChange('flooring', updatedFlooring);
+    appendFlooring(newFloor);
   };
 
   const addWallPartition = () => {
     const newWall: WallPartition = {
       id: Date.now().toString(),
-      wallName: `Wall ${structuralData.wallsPartitions.length + 1}`,
+      wallName: `Wall ${wallsFields.length + 1}`,
       material: '',
       otherSpecify: '',
     };
-    const updatedWalls = [...structuralData.wallsPartitions, newWall];
-    onStructuralChange('wallsPartitions', updatedWalls);
+    appendWall(newWall);
   };
 
-  const removeWallPartition = (id: string) => {
-    const updatedWalls = structuralData.wallsPartitions.filter(wall => wall.id !== id);
-    onStructuralChange('wallsPartitions', updatedWalls);
-  };
-
-  const updateWallPartition = (id: string, field: keyof WallPartition, value: string) => {
-    const updatedWalls = structuralData.wallsPartitions.map(wall =>
-      wall.id === id ? { ...wall, [field]: value } : wall
-    );
-    onStructuralChange('wallsPartitions', updatedWalls);
-  };
-
-  const renderCheckbox = (label: string, checked: boolean, onPress: () => void) => (
+  const renderCheckbox = (
+    name: string,
+    label: string,
+    checked: boolean,
+    onPress: () => void
+  ) => (
     <TouchableOpacity
       onPress={onPress}
       className="flex flex-row items-center mb-3"
@@ -165,11 +196,10 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
 
   const renderSection = (
     title: string,
-    sectionKey: string,
+    sectionKey: keyof StructuralFormData,
     items: Array<{key: string, label: string}>,
     hasOthers: boolean = true
   ) => {
-    const section = structuralData[sectionKey as keyof typeof structuralData] as any;
     const isExpanded = expandedSections[sectionKey];
 
     return (
@@ -184,32 +214,53 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
         
         {isExpanded && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
-            {items.map((item, index) =>
-              <View key={`${sectionKey}-${item.key}-${index}`}>
-                {renderCheckbox(
-                  item.label,
-                  section[item.key],
-                  () => handleCheckboxChange(sectionKey, item.key, !section[item.key])
-                )}
-              </View>
-            )}
+            {items.map((item, index) => (
+              <Controller
+                key={`${sectionKey}-${item.key}-${index}`}
+                control={control}
+                name={`${sectionKey}.${item.key}` as any}
+                render={({ field: { onChange, value } }) =>
+                  renderCheckbox(
+                    `${sectionKey}.${item.key}`,
+                    item.label,
+                    value,
+                    () => onChange(!value)
+                  )
+                }
+              />
+            ))}
             
             {hasOthers && (
               <>
-                {renderCheckbox(
-                  'Others (Specify)',
-                  section.others,
-                  () => handleCheckboxChange(sectionKey, 'others', !section.others)
-                )}
+                <Controller
+                  control={control}
+                  name={`${sectionKey}.others` as any}
+                  render={({ field: { onChange, value } }) =>
+                    renderCheckbox(
+                      `${sectionKey}.others`,
+                      'Others (Specify)',
+                      value,
+                      () => onChange(!value)
+                    )
+                  }
+                />
                 
-                {section.others && (
-                  <TextInput
-                    value={section.othersSpecify}
-                    onChangeText={(text) => handleOthersSpecifyChange(sectionKey, text)}
-                    placeholder="Please specify..."
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-gray-50 ml-8"
-                  />
-                )}
+                <Controller
+                  control={control}
+                  name={`${sectionKey}.othersSpecify` as any}
+                  render={({ field: { onChange, onBlur, value } }) => {
+                    const othersChecked = watch(`${sectionKey}.others` as any);
+                    return othersChecked ? (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Please specify..."
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-gray-50 ml-8"
+                      />
+                    ) : null;
+                  }}
+                />
               </>
             )}
           </View>
@@ -364,18 +415,26 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
         
         {expandedSections.flooring && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
-            {structuralData.flooring.map((floor, index) => (
-              <View key={floor.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
+            {flooringFields.map((field, index) => (
+              <View key={field.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <View className="flex flex-row items-center justify-between mb-2">
-                  <TextInput
-                    value={floor.floorName}
-                    onChangeText={(text) => updateFloorMaterial(floor.id, 'floorName', text)}
-                    placeholder="Floor name"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white mr-2"
+                  <Controller
+                    control={control}
+                    name={`flooring.${index}.floorName`}
+                    rules={{ required: 'Floor name is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Floor name"
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white mr-2"
+                      />
+                    )}
                   />
-                  {structuralData.flooring.length > 1 && (
+                  {flooringFields.length > 1 && (
                     <TouchableOpacity
-                      onPress={() => removeFloorMaterial(floor.id)}
+                      onPress={() => removeFlooring(index)}
                       className="bg-red-500 rounded-full w-6 h-6 flex items-center justify-center"
                     >
                       <Text className="text-white text-sm font-bold">×</Text>
@@ -384,23 +443,38 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 </View>
                 
                 <View className="mb-2">
-                  <MaterialDropdown
-                    value={floor.material}
-                    onValueChange={(value) => updateFloorMaterial(floor.id, 'material', value)}
-                    options={flooringOptions}
-                    placeholder="Select flooring material"
-                    dropdownId={`floor-${floor.id}`}
+                  <Controller
+                    control={control}
+                    name={`flooring.${index}.material`}
+                    rules={{ required: 'Material selection is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <MaterialDropdown
+                        value={value}
+                        onValueChange={onChange}
+                        options={flooringOptions}
+                        placeholder="Select flooring material"
+                        dropdownId={`floor-${field.id}`}
+                      />
+                    )}
                   />
                 </View>
                 
-                {floor.material === 'Others (Specify)' && (
-                  <TextInput
-                    value={floor.otherSpecify}
-                    onChangeText={(text) => updateFloorMaterial(floor.id, 'otherSpecify', text)}
-                    placeholder="Please specify..."
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
-                  />
-                )}
+                <Controller
+                  control={control}
+                  name={`flooring.${index}.otherSpecify`}
+                  render={({ field: { onChange, onBlur, value } }) => {
+                    const material = watch(`flooring.${index}.material`);
+                    return material === 'Others (Specify)' ? (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Please specify..."
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
+                      />
+                    ) : null;
+                  }}
+                />
               </View>
             ))}
           </View>
@@ -427,18 +501,26 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
         
         {expandedSections.walls && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
-            {structuralData.wallsPartitions.map((wall, index) => (
-              <View key={wall.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
+            {wallsFields.map((field, index) => (
+              <View key={field.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <View className="flex flex-row items-center justify-between mb-2">
-                  <TextInput
-                    value={wall.wallName}
-                    onChangeText={(text) => updateWallPartition(wall.id, 'wallName', text)}
-                    placeholder="Wall/Partition name"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white mr-2"
+                  <Controller
+                    control={control}
+                    name={`wallsPartitions.${index}.wallName`}
+                    rules={{ required: 'Wall name is required' }}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Wall/Partition name"
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white mr-2"
+                      />
+                    )}
                   />
-                  {structuralData.wallsPartitions.length > 1 && (
+                  {wallsFields.length > 1 && (
                     <TouchableOpacity
-                      onPress={() => removeWallPartition(wall.id)}
+                      onPress={() => removeWall(index)}
                       className="bg-red-500 rounded-full w-6 h-6 flex items-center justify-center"
                     >
                       <Text className="text-white text-sm font-bold">×</Text>
@@ -447,28 +529,54 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 </View>
                 
                 <View className="mb-2">
-                  <MaterialDropdown
-                    value={wall.material}
-                    onValueChange={(value) => updateWallPartition(wall.id, 'material', value)}
-                    options={wallsOptions}
-                    placeholder="Select wall material"
-                    dropdownId={`wall-${wall.id}`}
+                  <Controller
+                    control={control}
+                    name={`wallsPartitions.${index}.material`}
+                    rules={{ required: 'Material selection is required' }}
+                    render={({ field: { onChange, value } }) => (
+                      <MaterialDropdown
+                        value={value}
+                        onValueChange={onChange}
+                        options={wallsOptions}
+                        placeholder="Select wall material"
+                        dropdownId={`wall-${field.id}`}
+                      />
+                    )}
                   />
                 </View>
                 
-                {wall.material === 'Others (Specify)' && (
-                  <TextInput
-                    value={wall.otherSpecify}
-                    onChangeText={(text) => updateWallPartition(wall.id, 'otherSpecify', text)}
-                    placeholder="Please specify..."
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
-                  />
-                )}
+                <Controller
+                  control={control}
+                  name={`wallsPartitions.${index}.otherSpecify`}
+                  render={({ field: { onChange, onBlur, value } }) => {
+                    const material = watch(`wallsPartitions.${index}.material`);
+                    return material === 'Others (Specify)' ? (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        placeholder="Please specify..."
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
+                      />
+                    ) : null;
+                  }}
+                />
               </View>
             ))}
           </View>
         )}
       </View>
+
+      {/* Error Messages */}
+      {Object.keys(errors).length > 0 && (
+        <View className="mt-2 p-2 bg-red-50 rounded-lg">
+          {Object.entries(errors).map(([field, error]) => (
+            <Text key={field} className="text-red-500 text-xs font-rubik">
+              • {error?.message || `${field} has an error`}
+            </Text>
+          ))}
+        </View>
+      )}
     </View>
   );
 };

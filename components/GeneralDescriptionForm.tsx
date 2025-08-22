@@ -11,6 +11,7 @@ import {
   ScrollView
 } from 'react-native'
 import React, { useState } from 'react'
+import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import * as ImagePicker from 'expo-image-picker'
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -194,107 +195,145 @@ interface FloorArea {
   area: string;
 }
 
+interface GeneralFormData {
+  kindOfBuilding: string;
+  structuralType: string;
+  buildingPermitNo: string;
+  condominiumCCT: string;
+  completionCertificateDate: string;
+  occupancyCertificateDate: string;
+  dateConstructed: string;
+  dateOccupied: string;
+  buildingAge: string;
+  numberOfStoreys: string;
+  floorAreas: FloorArea[];
+  totalFloorArea: string;
+  floorPlanImages: string[];
+}
+
 interface GeneralDescriptionFormProps {
-  generalData: {
-    kindOfBuilding: string;
-    structuralType: string;
-    buildingPermitNo: string;
-    condominiumCCT: string;
-    completionCertificateDate: string;
-    occupancyCertificateDate: string;
-    dateConstructed: string;
-    dateOccupied: string;
-    buildingAge: string;
-    numberOfStoreys: string;
-    floorAreas: FloorArea[];
-    totalFloorArea: string;
-    floorPlanImages: string[];
-  };
-  onGeneralChange: (field: string, value: any) => void;
+  defaultValues?: GeneralFormData;
+  onFormChange?: (data: GeneralFormData) => void;
 }
 
 const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
-  generalData,
-  onGeneralChange,
+  defaultValues = {
+    kindOfBuilding: '',
+    structuralType: '',
+    buildingPermitNo: '',
+    condominiumCCT: '',
+    completionCertificateDate: '',
+    occupancyCertificateDate: '',
+    dateConstructed: '',
+    dateOccupied: '',
+    buildingAge: '',
+    numberOfStoreys: '',
+    floorAreas: [{ id: '1', floorNumber: 'Ground Floor', area: '' }],
+    totalFloorArea: '0',
+    floorPlanImages: [],
+  },
+  onFormChange,
 }) => {
+  const { control, watch, setValue, reset, formState: { errors } } = useForm<GeneralFormData>({
+    defaultValues,
+    mode: 'onChange'
+  });
+
+  const { fields: floorFields, append: appendFloor, remove: removeFloor } = useFieldArray({
+    control,
+    name: 'floorAreas'
+  });
+
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [availableBuildingTypes, setAvailableBuildingTypes] = useState<string[]>([]);
-  const renderInput = (
-    label: string,
-    value: string,
-    onChangeText: (text: string) => void,
-    placeholder?: string,
-    keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default'
-  ) => (
-    <View className="mb-4">
-      <Text className="text-base font-rubik-medium text-black-300 mb-2">
-        {label} <Text className="text-red-500">*</Text>
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-        className="border border-gray-300 rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12"
-        keyboardType={keyboardType}
-        textAlignVertical="center"
-      />
-    </View>
-  );
 
-  const renderDateInput = (
+  // Watch all form values and call onFormChange when they change
+  const watchedValues = watch();
+  const structuralType = watch('structuralType');
+  const kindOfBuilding = watch('kindOfBuilding');
+  const floorAreas = watch('floorAreas');
+
+  // Simple useEffect to call onFormChange when form values change
+  React.useEffect(() => {
+    if (onFormChange) {
+      onFormChange(watchedValues);
+    }
+  }, [watchedValues, onFormChange]);
+
+  // Update available building types when structural type changes
+  React.useEffect(() => {
+    if (structuralType) {
+      const buildingTypes = Object.keys(constructionCosts[structuralType] || {})
+        .filter(buildingType => constructionCosts[structuralType][buildingType] !== null);
+      setAvailableBuildingTypes(buildingTypes);
+      
+      // Reset kind of building when structural type changes
+      if (kindOfBuilding && !buildingTypes.includes(kindOfBuilding)) {
+        setValue('kindOfBuilding', '');
+      }
+    }
+  }, [structuralType, kindOfBuilding, setValue]);
+
+  // Calculate total floor area
+  React.useEffect(() => {
+    const total = floorAreas.reduce((sum, floor) => {
+      const area = parseFloat(floor.area) || 0;
+      return sum + area;
+    }, 0);
+    setValue('totalFloorArea', total.toString());
+  }, [floorAreas, setValue]);
+
+  const renderInput = (
+    name: keyof GeneralFormData,
     label: string,
-    value: string,
-    onChangeText: (text: string) => void,
-    placeholder?: string
+    placeholder?: string,
+    keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default',
+    rules?: any
   ) => (
     <View className="mb-4">
       <Text className="text-base font-rubik-medium text-black-300 mb-2">
         {label} <Text className="text-red-500">*</Text>
       </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder || "MM/DD/YYYY"}
-        className="border border-gray-300 rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12"
-        textAlignVertical="center"
+      <Controller
+        control={control}
+        name={name}
+        rules={rules || {
+          required: `${label} is required`,
+          minLength: {
+            value: 1,
+            message: `${label} cannot be empty`
+          }
+        }}
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
+              errors[name] ? 'border-red-500' : 'border-gray-300'
+            }`}
+            keyboardType={keyboardType}
+            textAlignVertical="center"
+          />
+        )}
       />
+      {errors[name] && (
+        <Text className="text-red-500 text-sm font-rubik mt-1">
+          {errors[name]?.message}
+        </Text>
+      )}
     </View>
   );
 
   const addFloorArea = () => {
     const newFloor: FloorArea = {
       id: Date.now().toString(),
-      floorNumber: `Floor ${generalData.floorAreas.length + 1}`,
+      floorNumber: `Floor ${floorFields.length + 1}`,
       area: '',
     };
-    const updatedFloors = [...generalData.floorAreas, newFloor];
-    onGeneralChange('floorAreas', updatedFloors);
-    calculateTotalArea(updatedFloors);
-  };
-
-  const removeFloorArea = (id: string) => {
-    const updatedFloors = generalData.floorAreas.filter(floor => floor.id !== id);
-    onGeneralChange('floorAreas', updatedFloors);
-    calculateTotalArea(updatedFloors);
-  };
-
-  const updateFloorArea = (id: string, field: keyof FloorArea, value: string) => {
-    const updatedFloors = generalData.floorAreas.map(floor =>
-      floor.id === id ? { ...floor, [field]: value } : floor
-    );
-    onGeneralChange('floorAreas', updatedFloors);
-    if (field === 'area') {
-      calculateTotalArea(updatedFloors);
-    }
-  };
-
-  const calculateTotalArea = (floors: FloorArea[]) => {
-    const total = floors.reduce((sum, floor) => {
-      const area = parseFloat(floor.area) || 0;
-      return sum + area;
-    }, 0);
-    onGeneralChange('totalFloorArea', total.toString());
+    appendFloor(newFloor);
   };
 
   const showImageOptions = () => {
@@ -325,8 +364,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        const newImages = [...generalData.floorPlanImages, result.assets[0].uri];
-        onGeneralChange('floorPlanImages', newImages);
+        const currentImages = watch('floorPlanImages');
+        const newImages = [...currentImages, result.assets[0].uri];
+        setValue('floorPlanImages', newImages);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo');
@@ -348,9 +388,10 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
       });
 
       if (!result.canceled && result.assets.length > 0) {
+        const currentImages = watch('floorPlanImages');
         const newImageUris = result.assets.map(asset => asset.uri);
-        const updatedImages = [...generalData.floorPlanImages, ...newImageUris];
-        onGeneralChange('floorPlanImages', updatedImages);
+        const updatedImages = [...currentImages, ...newImageUris];
+        setValue('floorPlanImages', updatedImages);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick images');
@@ -358,8 +399,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
   };
 
   const removeImage = (index: number) => {
-    const updatedImages = generalData.floorPlanImages.filter((_, i) => i !== index);
-    onGeneralChange('floorPlanImages', updatedImages);
+    const currentImages = watch('floorPlanImages');
+    const updatedImages = currentImages.filter((_, i) => i !== index);
+    setValue('floorPlanImages', updatedImages);
   };
 
   const openGallery = (index: number) => {
@@ -385,63 +427,54 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
     </View>
   );
 
-  const handleStructuralTypeChange = (structuralType: string) => {
-    // Get available building types for the selected structural type
-    const buildingTypes = Object.keys(constructionCosts[structuralType] || {})
-      .filter(buildingType => constructionCosts[structuralType][buildingType] !== null);
-    
-    setAvailableBuildingTypes(buildingTypes);
-    
-    // Update structural type
-    onGeneralChange('structuralType', structuralType);
-    
-    // Reset kind of building when structural type changes
-    onGeneralChange('kindOfBuilding', '');
-  };
-
-  const handleBuildingTypeChange = (buildingType: string) => {
-    onGeneralChange('kindOfBuilding', buildingType);
-  };
-
   const renderDropdown = (
-    value: string,
-    onValueChange: (value: string) => void,
+    name: keyof GeneralFormData,
     options: string[],
-    placeholder: string = "Select option"
+    placeholder: string = "Select option",
+    rules?: any
   ) => {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
-      <View className="relative">
-        <TouchableOpacity
-          onPress={() => setIsOpen(!isOpen)}
-          className="border border-gray-300 rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between"
-        >
-          <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
-            {value || placeholder}
-          </Text>
-          <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
-        
-        {isOpen && (
-          <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
-            <ScrollView nestedScrollEnabled={true}>
-              {options.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => {
-                    onValueChange(option);
-                    setIsOpen(false);
-                  }}
-                  className="px-3 py-2 border-b border-gray-100"
-                >
-                  <Text className="text-base font-rubik text-black-300">{option}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+      <Controller
+        control={control}
+        name={name}
+        rules={rules}
+        render={({ field: { onChange, value } }) => (
+          <View className="relative">
+            <TouchableOpacity
+              onPress={() => setIsOpen(!isOpen)}
+              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${
+                errors[name] ? 'border-red-500' : 'border-gray-300'
+              }`}
+            >
+              <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
+                {value || placeholder}
+              </Text>
+              <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            
+            {isOpen && (
+              <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
+                <ScrollView nestedScrollEnabled={true}>
+                  {options.map((option, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => {
+                        onChange(option);
+                        setIsOpen(false);
+                      }}
+                      className="px-3 py-2 border-b border-gray-100"
+                    >
+                      <Text className="text-base font-rubik text-black-300">{option}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         )}
-      </View>
+      />
     );
   };
 
@@ -455,6 +488,8 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
     </View>
   );
 
+  const floorPlanImages = watch('floorPlanImages');
+
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <Text className="text-lg font-rubik-bold text-black-300 mb-4">General Description</Text>
@@ -465,10 +500,15 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           Structural Type <Text className="text-red-500">*</Text>
         </Text>
         {renderDropdown(
-          generalData.structuralType,
-          handleStructuralTypeChange,
+          'structuralType',
           Object.keys(constructionCosts),
-          "Select structural type"
+          "Select structural type",
+          { required: 'Structural Type is required' }
+        )}
+        {errors.structuralType && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">
+            {errors.structuralType?.message}
+          </Text>
         )}
       </View>
 
@@ -478,35 +518,40 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           Kind of Building <Text className="text-red-500">*</Text>
         </Text>
         {renderDropdown(
-          generalData.kindOfBuilding,
-          handleBuildingTypeChange,
+          'kindOfBuilding',
           availableBuildingTypes,
-          generalData.structuralType ? "Select kind of building" : "Select structural type first"
+          structuralType ? "Select kind of building" : "Select structural type first",
+          { required: 'Kind of Building is required' }
         )}
-        {generalData.structuralType && generalData.kindOfBuilding && (
+        {errors.kindOfBuilding && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">
+            {errors.kindOfBuilding?.message}
+          </Text>
+        )}
+        {structuralType && kindOfBuilding && (
           <View className="mt-2 p-3 bg-blue-50 rounded-lg">
             <Text className="text-sm font-rubik text-blue-800">
-              Unit Cost: ₱{constructionCosts[generalData.structuralType]?.[generalData.kindOfBuilding]?.toLocaleString() || 'N/A'} per sq.m
+              Unit Cost: ₱{constructionCosts[structuralType]?.[kindOfBuilding]?.toLocaleString() || 'N/A'} per sq.m
             </Text>
           </View>
         )}
       </View>
       
-      {renderInput('Bldg. Permit No.', generalData.buildingPermitNo, (text) => onGeneralChange('buildingPermitNo', text), 'Building permit number')}
+      {renderInput('buildingPermitNo', 'Bldg. Permit No.', 'Building permit number')}
       
-      {renderInput('Condominium Certificate of Title (CCT)', generalData.condominiumCCT, (text) => onGeneralChange('condominiumCCT', text), 'CCT number if applicable')}
+      {renderInput('condominiumCCT', 'Condominium Certificate of Title (CCT)', 'CCT number if applicable')}
       
-      {renderDateInput('Certificate of Completion Issued On', generalData.completionCertificateDate, (text) => onGeneralChange('completionCertificateDate', text))}
+      {renderInput('completionCertificateDate', 'Certificate of Completion Issued On', 'MM/DD/YYYY')}
       
-      {renderDateInput('Certificate of Occupancy Issued On', generalData.occupancyCertificateDate, (text) => onGeneralChange('occupancyCertificateDate', text))}
+      {renderInput('occupancyCertificateDate', 'Certificate of Occupancy Issued On', 'MM/DD/YYYY')}
       
-      {renderDateInput('Date Constructed / Completed', generalData.dateConstructed, (text) => onGeneralChange('dateConstructed', text))}
+      {renderInput('dateConstructed', 'Date Constructed / Completed', 'MM/DD/YYYY')}
       
-      {renderDateInput('Date Occupied', generalData.dateOccupied, (text) => onGeneralChange('dateOccupied', text))}
+      {renderInput('dateOccupied', 'Date Occupied', 'MM/DD/YYYY')}
       
-      {renderInput('Building Age', generalData.buildingAge, (text) => onGeneralChange('buildingAge', text), 'Age in years', 'numeric')}
+      {renderInput('buildingAge', 'Building Age', 'Age in years', 'numeric')}
       
-      {renderInput('No of Storeys', generalData.numberOfStoreys, (text) => onGeneralChange('numberOfStoreys', text), 'Number of floors', 'numeric')}
+      {renderInput('numberOfStoreys', 'No of Storeys', 'Number of floors', 'numeric')}
 
       {/* Dynamic Floor Areas */}
       <View className="mb-4">
@@ -522,26 +567,48 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           </TouchableOpacity>
         </View>
 
-        {generalData.floorAreas.map((floor, index) => (
-          <View key={floor.id} className="flex flex-row items-center mb-3 bg-gray-50 p-3 rounded-lg">
+        {floorFields.map((field, index) => (
+          <View key={field.id} className="flex flex-row items-center mb-3 bg-gray-50 p-3 rounded-lg">
             <View className="flex-1 mr-3">
-              <TextInput
-                value={floor.floorNumber}
-                onChangeText={(text) => updateFloorArea(floor.id, 'floorNumber', text)}
-                placeholder="Floor name"
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white h-10 mb-2"
+              <Controller
+                control={control}
+                name={`floorAreas.${index}.floorNumber`}
+                rules={{ required: 'Floor name is required' }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Floor name"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white h-10 mb-2"
+                  />
+                )}
               />
-              <TextInput
-                value={floor.area}
-                onChangeText={(text) => updateFloorArea(floor.id, 'area', text)}
-                placeholder="Area (sq.m)"
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white h-10"
-                keyboardType="numeric"
+              <Controller
+                control={control}
+                name={`floorAreas.${index}.area`}
+                rules={{ 
+                  required: 'Area is required',
+                  pattern: {
+                    value: /^[0-9.]+$/,
+                    message: 'Area must be a valid number'
+                  }
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Area (sq.m)"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white h-10"
+                    keyboardType="numeric"
+                  />
+                )}
               />
             </View>
-            {generalData.floorAreas.length > 1 && (
+            {floorFields.length > 1 && (
               <TouchableOpacity
-                onPress={() => removeFloorArea(floor.id)}
+                onPress={() => removeFloor(index)}
                 className="bg-red-500 rounded-full w-6 h-6 flex items-center justify-center"
               >
                 <Text className="text-white text-sm font-bold">×</Text>
@@ -558,7 +625,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
         </Text>
         <View className="border border-gray-300 rounded-lg px-4 py-3 bg-gray-100">
           <Text className="text-base font-rubik text-black-300">
-            {generalData.totalFloorArea || '0'} sq.m
+            {watchedValues.totalFloorArea || '0'} sq.m
           </Text>
         </View>
       </View>
@@ -577,10 +644,10 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           </TouchableOpacity>
         </View>
         
-        {generalData.floorPlanImages.length > 0 ? (
+        {floorPlanImages.length > 0 ? (
           <View>
             <FlatList
-              data={generalData.floorPlanImages}
+              data={floorPlanImages}
               renderItem={renderImageItem}
               keyExtractor={(item, index) => index.toString()}
               horizontal
@@ -588,7 +655,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               contentContainerStyle={{ paddingVertical: 8 }}
             />
             <Text className="text-sm font-rubik text-gray-500 mt-2">
-              {generalData.floorPlanImages.length} image(s) • Tap image to view fullscreen
+              {floorPlanImages.length} image(s) • Tap image to view fullscreen
             </Text>
           </View>
         ) : (
@@ -620,14 +687,14 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               <Text className="text-white text-lg font-bold">×</Text>
             </TouchableOpacity>
             <Text className="text-white text-base font-rubik-medium">
-              {selectedImageIndex + 1} of {generalData.floorPlanImages.length}
+              {selectedImageIndex + 1} of {floorPlanImages.length}
             </Text>
             <TouchableOpacity
               onPress={() => {
                 removeImage(selectedImageIndex);
-                if (generalData.floorPlanImages.length === 1) {
+                if (floorPlanImages.length === 1) {
                   setIsGalleryVisible(false);
-                } else if (selectedImageIndex >= generalData.floorPlanImages.length - 1) {
+                } else if (selectedImageIndex >= floorPlanImages.length - 1) {
                   setSelectedImageIndex(Math.max(0, selectedImageIndex - 1));
                 }
               }}
@@ -639,7 +706,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
 
           {/* Image Gallery */}
           <FlatList
-            data={generalData.floorPlanImages}
+            data={floorPlanImages}
             renderItem={renderFullscreenImage}
             keyExtractor={(item, index) => index.toString()}
             horizontal
@@ -658,9 +725,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           />
 
           {/* Image Indicators */}
-          {generalData.floorPlanImages.length > 1 && (
+          {floorPlanImages.length > 1 && (
             <View className="absolute bottom-12 left-0 right-0 flex flex-row justify-center">
-              {generalData.floorPlanImages.map((_, index) => (
+              {floorPlanImages.map((_, index) => (
                 <View
                   key={index}
                   className={`w-2 h-2 rounded-full mx-1 ${
