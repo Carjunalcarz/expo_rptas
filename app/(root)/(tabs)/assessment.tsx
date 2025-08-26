@@ -2,11 +2,16 @@ import { View, Text, TouchableOpacity, FlatList } from 'react-native'
 import React from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
+import { useForm } from 'react-hook-form';
 
 const Assessment = () => {
   const handleAddAssessment = () => {
     router.push('/assessment/add_assessment')
   }
+  const { watch } = useForm();
+
+  const allValues = watch();
+  console.log("Assessment Form", allValues);
 
   return (
     <SafeAreaView className="flex-1 bg-white">

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 
-import { logout } from "@/lib/appwrite";
+import { logout } from "@/lib/auth";
 import { useGlobalContext } from "@/lib/global-provider";
 
 import icons from "@/constants/icons";

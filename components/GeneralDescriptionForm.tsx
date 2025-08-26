@@ -267,7 +267,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
       const buildingTypes = Object.keys(constructionCosts[structuralType] || {})
         .filter(buildingType => constructionCosts[structuralType][buildingType] !== null);
       setAvailableBuildingTypes(buildingTypes);
-      
+
       // Reset kind of building when structural type changes
       if (kindOfBuilding && !buildingTypes.includes(kindOfBuilding)) {
         setValue('kindOfBuilding', '');
@@ -307,16 +307,15 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
-            value={value}
+            value={Array.isArray(value) ? value.join(', ') : value || ''}
             onChangeText={onChange}
-            onBlur={onBlur}
             placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
-              errors[name] ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${errors?.[name] ? 'border-red-500' : 'border-gray-300'
+              }`}
             keyboardType={keyboardType}
             textAlignVertical="center"
           />
+
         )}
       />
       {errors[name] && (
@@ -444,16 +443,20 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           <View className="relative">
             <TouchableOpacity
               onPress={() => setIsOpen(!isOpen)}
-              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${
-                errors[name] ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${errors[name] ? 'border-red-500' : 'border-gray-300'
+                }`}
             >
-              <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
-                {value || placeholder}
+              <Text
+                className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}
+              >
+                {Array.isArray(value)
+                  ? value.map((v: any) => (typeof v === 'string' ? v : JSON.stringify(v))).join(', ')
+                  : value || placeholder}
               </Text>
+
               <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
             </TouchableOpacity>
-            
+
             {isOpen && (
               <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
                 <ScrollView nestedScrollEnabled={true}>
@@ -493,7 +496,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <Text className="text-lg font-rubik-bold text-black-300 mb-4">General Description</Text>
-      
+
       {/* Structural Type Dropdown */}
       <View className="mb-4">
         <Text className="text-base font-rubik-medium text-black-300 mb-2">
@@ -536,21 +539,21 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           </View>
         )}
       </View>
-      
+
       {renderInput('buildingPermitNo', 'Bldg. Permit No.', 'Building permit number')}
-      
+
       {renderInput('condominiumCCT', 'Condominium Certificate of Title (CCT)', 'CCT number if applicable')}
-      
+
       {renderInput('completionCertificateDate', 'Certificate of Completion Issued On', 'MM/DD/YYYY')}
-      
+
       {renderInput('occupancyCertificateDate', 'Certificate of Occupancy Issued On', 'MM/DD/YYYY')}
-      
+
       {renderInput('dateConstructed', 'Date Constructed / Completed', 'MM/DD/YYYY')}
-      
+
       {renderInput('dateOccupied', 'Date Occupied', 'MM/DD/YYYY')}
-      
+
       {renderInput('buildingAge', 'Building Age', 'Age in years', 'numeric')}
-      
+
       {renderInput('numberOfStoreys', 'No of Storeys', 'Number of floors', 'numeric')}
 
       {/* Dynamic Floor Areas */}
@@ -587,7 +590,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               <Controller
                 control={control}
                 name={`floorAreas.${index}.area`}
-                rules={{ 
+                rules={{
                   required: 'Area is required',
                   pattern: {
                     value: /^[0-9.]+$/,
@@ -643,7 +646,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
         </View>
-        
+
         {floorPlanImages.length > 0 ? (
           <View>
             <FlatList
@@ -730,9 +733,8 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               {floorPlanImages.map((_, index) => (
                 <View
                   key={index}
-                  className={`w-2 h-2 rounded-full mx-1 ${
-                    index === selectedImageIndex ? 'bg-white' : 'bg-white/50'
-                  }`}
+                  className={`w-2 h-2 rounded-full mx-1 ${index === selectedImageIndex ? 'bg-white' : 'bg-white/50'
+                    }`}
                 />
               ))}
             </View>

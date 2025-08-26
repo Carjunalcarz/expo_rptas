@@ -70,6 +70,12 @@ function getRandomSubset<T>(
   return arrayCopy.slice(0, subsetSize);
 }
 
+// Dummy user data for local login testing
+export const dummyUsers = [
+  { email: "test@example.com", password: "password123" },
+  { email: "user@example.com", password: "admin123" },
+];
+
 async function seed() {
   try {
     // Clear existing data from all collections

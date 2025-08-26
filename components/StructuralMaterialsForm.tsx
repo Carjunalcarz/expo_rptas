@@ -1,6 +1,6 @@
-import { 
-  View, 
-  Text, 
+import {
+  View,
+  Text,
   TextInput,
   TouchableOpacity,
   ScrollView
@@ -128,7 +128,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     name: 'wallsPartitions'
   });
 
-  const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
+  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     foundation: true,
     columns: false,
     beams: false,
@@ -185,9 +185,8 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
       onPress={onPress}
       className="flex flex-row items-center mb-3"
     >
-      <View className={`w-5 h-5 border-2 rounded mr-3 flex items-center justify-center ${
-        checked ? 'bg-primary-300 border-primary-300' : 'border-gray-400'
-      }`}>
+      <View className={`w-5 h-5 border-2 rounded mr-3 flex items-center justify-center ${checked ? 'bg-primary-300 border-primary-300' : 'border-gray-400'
+        }`}>
         {checked && <Text className="text-white text-xs font-bold">✓</Text>}
       </View>
       <Text className="text-sm font-rubik text-black-300 flex-1">{label}</Text>
@@ -197,21 +196,25 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
   const renderSection = (
     title: string,
     sectionKey: keyof StructuralFormData,
-    items: Array<{key: string, label: string}>,
+    items: Array<{ key: string, label: string }>,
     hasOthers: boolean = true
   ) => {
     const isExpanded = expandedSections[sectionKey];
 
     return (
       <View className="mb-4">
+        {/* Section Toggle Button */}
         <TouchableOpacity
           onPress={() => toggleSection(sectionKey)}
           className="flex flex-row items-center justify-between bg-gray-100 p-3 rounded-lg"
         >
           <Text className="text-base font-rubik-medium text-black-300">{title}</Text>
-          <Text className="text-lg font-bold text-gray-600">{isExpanded ? '−' : '+'}</Text>
+          <Text className="text-lg font-bold text-gray-600">
+            {isExpanded ? '−' : '+'}
+          </Text>
         </TouchableOpacity>
-        
+
+        {/* Expanded Content */}
         {isExpanded && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
             {items.map((item, index) => (
@@ -229,7 +232,8 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 }
               />
             ))}
-            
+
+            {/* "Others (Specify)" */}
             {hasOthers && (
               <>
                 <Controller
@@ -244,21 +248,25 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     )
                   }
                 />
-                
+
                 <Controller
                   control={control}
                   name={`${sectionKey}.othersSpecify` as any}
                   render={({ field: { onChange, onBlur, value } }) => {
-                    const othersChecked = watch(`${sectionKey}.others` as any);
-                    return othersChecked ? (
-                      <TextInput
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        placeholder="Please specify..."
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-gray-50 ml-8"
-                      />
-                    ) : null;
+                    const othersChecked = watch(`${sectionKey}.others` as any)
+                    return (
+                      <View>
+                        {othersChecked && (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            onBlur={onBlur}
+                            placeholder="Please specify..."
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-gray-50 ml-8"
+                          />
+                        )}
+                      </View>
+                    )
                   }}
                 />
               </>
@@ -266,6 +274,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
           </View>
         )}
       </View>
+
     );
   };
 
@@ -283,7 +292,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     placeholder?: string;
     dropdownId: string;
   }) => {
-    const [openDropdowns, setOpenDropdowns] = useState<{[key: string]: boolean}>({});
+    const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
 
     const toggleDropdown = (id: string) => {
       setOpenDropdowns(prev => ({
@@ -313,7 +322,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
           </Text>
           <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
         </TouchableOpacity>
-        
+
         {isOpen && (
           <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
             <ScrollView nestedScrollEnabled={true}>
@@ -357,7 +366,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <Text className="text-lg font-rubik-bold text-black-300 mb-4">Structural Materials</Text>
-      
+
       {/* Foundation */}
       {renderSection('Foundation', 'foundation', [
         { key: 'reinforceConcrete', label: 'Reinforce Concrete' },
@@ -412,7 +421,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
             <Text className="text-lg font-bold text-gray-600">{expandedSections.flooring ? '▼' : '▶'}</Text>
           </View>
         </TouchableOpacity>
-        
+
         {expandedSections.flooring && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
             {flooringFields.map((field, index) => (
@@ -441,7 +450,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     </TouchableOpacity>
                   )}
                 </View>
-                
+
                 <View className="mb-2">
                   <Controller
                     control={control}
@@ -458,23 +467,27 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     )}
                   />
                 </View>
-                
                 <Controller
                   control={control}
                   name={`flooring.${index}.otherSpecify`}
                   render={({ field: { onChange, onBlur, value } }) => {
                     const material = watch(`flooring.${index}.material`);
-                    return material === 'Others (Specify)' ? (
-                      <TextInput
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        placeholder="Please specify..."
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
-                      />
-                    ) : null;
+                    return (
+                      <View>
+                        {material === 'Others (Specify)' && (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            onBlur={onBlur}
+                            placeholder="Please specify..."
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
+                          />
+                        )}
+                      </View>
+                    );
                   }}
                 />
+
               </View>
             ))}
           </View>
@@ -498,7 +511,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
             <Text className="text-lg font-bold text-gray-600">{expandedSections.walls ? '▼' : '▶'}</Text>
           </View>
         </TouchableOpacity>
-        
+
         {expandedSections.walls && (
           <View className="bg-white p-4 rounded-lg mt-2 border border-gray-200">
             {wallsFields.map((field, index) => (
@@ -527,7 +540,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     </TouchableOpacity>
                   )}
                 </View>
-                
+
                 <View className="mb-2">
                   <Controller
                     control={control}
@@ -544,21 +557,25 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     )}
                   />
                 </View>
-                
+
                 <Controller
                   control={control}
                   name={`wallsPartitions.${index}.otherSpecify`}
                   render={({ field: { onChange, onBlur, value } }) => {
                     const material = watch(`wallsPartitions.${index}.material`);
-                    return material === 'Others (Specify)' ? (
-                      <TextInput
-                        value={value}
-                        onChangeText={onChange}
-                        onBlur={onBlur}
-                        placeholder="Please specify..."
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
-                      />
-                    ) : null;
+                    return (
+                      <View>
+                        {material === 'Others (Specify)' && (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            onBlur={onBlur}
+                            placeholder="Please specify..."
+                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-rubik text-black-300 bg-white"
+                          />
+                        )}
+                      </View>
+                    );
                   }}
                 />
               </View>
