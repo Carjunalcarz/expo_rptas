@@ -1,24 +1,70 @@
-import { View, Text, TextInput } from 'react-native'
-import React from 'react'
-import { useForm, Controller } from 'react-hook-form'
-
-interface LocationFormData {
-  street: string;
-  barangay: string;
-  municipality: string;
-  province: string;
-}
+import { View, Text, TextInput } from 'react-native';
+import React from 'react';
+import { useFormContext, Controller } from 'react-hook-form';
 
 const BuildingLocationForm: React.FC = () => {
-  const { control, formState: { errors } } = useForm<LocationFormData>({
-    defaultValues: {
-      street: '',
-      barangay: '',
-      municipality: '',
-      province: '',
-    },
-    mode: 'onChange',
-  });
+  const { control, formState: { errors } } = useFormContext();
+
+  // Helper function to get nested errors
+  const getError = (path: string) => {
+    const pathParts = path.split('.');
+    let current: any = errors;
+
+    for (const part of pathParts) {
+      if (!current) return undefined;
+      current = current[part];
+    }
+
+    return current;
+  };
+
+  const renderInput = (
+    name: string,
+    label: string,
+    placeholder?: string,
+    keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default',
+    multiline = false,
+    rules?: any
+  ) => {
+    const error = getError(name);
+
+    return (
+      <View className="mb-4">
+        <Text className="text-base font-rubik-medium text-black-300 mb-2">
+          {label} <Text className="text-red-500">*</Text>
+        </Text>
+        <Controller
+          control={control}
+          name={name}
+          rules={rules || {
+            required: `${label} is required`,
+            minLength: {
+              value: 1,
+              message: `${label} cannot be empty`
+            }
+          }}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white ${multiline ? 'h-20' : 'h-12'
+                } ${error ? 'border-red-500' : 'border-gray-300'}`}
+              keyboardType={keyboardType}
+              multiline={multiline}
+              textAlignVertical={multiline ? 'top' : 'center'}
+            />
+          )}
+        />
+        {error && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">
+            {error.message as string}
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
@@ -26,117 +72,10 @@ const BuildingLocationForm: React.FC = () => {
         Building Location
       </Text>
 
-      {/* Street */}
-      <View className="mb-4">
-        <Text className="text-base font-rubik-medium text-black-300 mb-2">
-          No. / Street <Text className="text-red-500">*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="street"
-          rules={{ required: 'Street is required' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              placeholder="House/Building No. and Street"
-              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
-                errors.street ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-          )}
-        />
-        {errors.street && (
-          <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.street.message}
-          </Text>
-        )}
-      </View>
-
-      {/* Barangay */}
-      <View className="mb-4">
-        <Text className="text-base font-rubik-medium text-black-300 mb-2">
-          Barangay <Text className="text-red-500">*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="barangay"
-          rules={{ required: 'Barangay is required' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              placeholder="Barangay name"
-              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
-                errors.barangay ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-          )}
-        />
-        {errors.barangay && (
-          <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.barangay.message}
-          </Text>
-        )}
-      </View>
-
-      {/* Municipality */}
-      <View className="mb-4">
-        <Text className="text-base font-rubik-medium text-black-300 mb-2">
-          Municipality <Text className="text-red-500">*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="municipality"
-          rules={{ required: 'Municipality is required' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              placeholder="Municipality/City name"
-              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
-                errors.municipality ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-          )}
-        />
-        {errors.municipality && (
-          <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.municipality.message}
-          </Text>
-        )}
-      </View>
-
-      {/* Province */}
-      <View className="mb-4">
-        <Text className="text-base font-rubik-medium text-black-300 mb-2">
-          Province <Text className="text-red-500">*</Text>
-        </Text>
-        <Controller
-          control={control}
-          name="province"
-          rules={{ required: 'Province is required' }}
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              placeholder="Province name"
-              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${
-                errors.province ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-          )}
-        />
-        {errors.province && (
-          <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.province.message}
-          </Text>
-        )}
-      </View>
+      {renderInput('building_location.street', 'No. / Street', 'House/Building No. and Street')}
+      {renderInput('building_location.barangay', 'Barangay', 'Barangay name')}
+      {renderInput('building_location.municipality', 'Municipality', 'Municipality/City name')}
+      {renderInput('building_location.province', 'Province', 'Province name')}
     </View>
   );
 };

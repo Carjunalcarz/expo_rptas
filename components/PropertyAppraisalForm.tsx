@@ -1,243 +1,333 @@
+// PropertyAppraisalFormAdapted.tsx
+import React from 'react';
 import {
   View,
   Text,
+  ScrollView,
   TextInput,
-  TouchableOpacity,
-  ScrollView
-} from 'react-native'
-import React from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { AppraisalItem } from '@/types'
+  StyleSheet
+} from 'react-native';
+import { useFormContext, Controller } from 'react-hook-form';
+import { constructionCosts } from './GeneralDescriptionForm';
 
-interface PropertyAppraisalFormProps {
-  defaultValues?: AppraisalItem;
-  onFormChange?: (data: AppraisalItem) => void;
+interface PropertyAppraisal {
+  description: string;
+  area: string;
+  unit_value: string;
+  bucc: string;
+  baseMarketValue: string;
+  depreciation: string;
+  depreciationCost: string;
+  marketValue: string;
 }
 
-const PropertyAppraisalForm: React.FC<PropertyAppraisalFormProps> = ({
-  defaultValues = {
-    id: '1',
-    description: '',
-    buildingCore: '',
-    type: '',
-    areaInSqm: '',
-    unitValue: '',
-    percentOfBUCC: '',
-    baseMarketValue: '',
-    percentDepreciation: '',
-    depreciationCost: '',
-    marketValue: '',
-  },
-  onFormChange,
-}) => {
-  const { control, watch, setValue, reset, formState: { errors } } = useForm<AppraisalItem>({
-    defaultValues,
-    mode: 'onChange'
-  });
+const headers: { key: keyof PropertyAppraisal; title: string; minWidth: number }[] = [
+  { key: 'description', title: 'Description', minWidth: 200 },
+  { key: 'area', title: 'Area', minWidth: 120 },
+  { key: 'unit_value', title: 'Unit Value', minWidth: 140 },
+  { key: 'bucc', title: '% of BUCC (SMV)', minWidth: 140 },
+  { key: 'baseMarketValue', title: 'Base Market Value', minWidth: 160 },
+  { key: 'depreciation', title: '%Depn.', minWidth: 120 },
+  { key: 'depreciationCost', title: 'Depreciation Cost', minWidth: 160 },
+  { key: 'marketValue', title: 'Market Value', minWidth: 160 }
+];
 
-  // Watch all form values and call onFormChange when they change
-  const watchedValues = watch();
-  const areaInSqm = watch('areaInSqm');
-  const unitValue = watch('unitValue');
-  const percentOfBUCC = watch('percentOfBUCC');
-  const baseMarketValue = watch('baseMarketValue');
-  const percentDepreciation = watch('percentDepreciation');
+const PropertyAppraisalFormAdapted: React.FC = () => {
+  const { control, watch } = useFormContext<any>();
 
-  // Simple useEffect to call onFormChange when form values change
-  React.useEffect(() => {
-    if (onFormChange) {
-      onFormChange(watchedValues);
-    }
-  }, [watchedValues, onFormChange]);
+  // Get total floor area from general description to auto-populate the area field
+  const totalFloorArea = watch('general_description.totalFloorArea');
+  const structuralType = watch('general_description.structuralType');
+  const kindOfBuilding = watch('general_description.kindOfBuilding');
 
-  // Auto-calculate dependent fields
-  React.useEffect(() => {
-    const area = parseFloat(areaInSqm) || 0;
-    const unitVal = parseFloat(unitValue) || 0;
-    const percentBUCC = parseFloat(percentOfBUCC) || 0;
-    
-    // Calculate Base Market Value = Area × Unit Value × (% of BUCC / 100)
-    const baseMarketVal = area * unitVal * (percentBUCC / 100);
-    const newBaseMarketValue = baseMarketVal.toFixed(2);
-    
-    if (newBaseMarketValue !== baseMarketValue) {
-      setValue('baseMarketValue', newBaseMarketValue);
-    }
-  }, [areaInSqm, unitValue, percentOfBUCC, baseMarketValue, setValue]);
+  // Calculate totals for summary
+  const watchedPropertyAppraisal = watch('property_appraisal');
 
-  React.useEffect(() => {
-    const baseMarketVal = parseFloat(baseMarketValue) || 0;
-    const percentDepn = parseFloat(percentDepreciation) || 0;
-    
-    // Calculate Depreciation Cost = Base Market Value × (% Depreciation / 100)
-    const depnCost = baseMarketVal * (percentDepn / 100);
-    const newDepreciationCost = depnCost.toFixed(2);
-    
-    // Calculate Market Value = Base Market Value - Depreciation Cost
-    const marketVal = baseMarketVal - depnCost;
-    const newMarketValue = marketVal.toFixed(2);
-    
-    setValue('depreciationCost', newDepreciationCost);
-    setValue('marketValue', newMarketValue);
-  }, [baseMarketValue, percentDepreciation, setValue]);
+  // property_appraisal may be:
+  // - an array of items, OR
+  // - an object with a nested `general_description` array, OR
+  // - a single object representing one appraisal row (this is what dummy_data uses)
+  // Normalize to an array and compute the base path used for Controller names.
+  let rows: PropertyAppraisal[] = [];
+  let basePath = 'property_appraisal';
+  let isSingleObject = false;
 
-  const renderInput = (
-    name: keyof AppraisalItem,
-    placeholder: string,
-    className: string,
-    keyboardType: 'default' | 'numeric' = 'default',
-    rules?: any
-  ) => (
-    <Controller
-      control={control}
-      name={name}
-      rules={rules}
-      render={({ field: { onChange, onBlur, value } }) => (
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          onBlur={onBlur}
-          placeholder={placeholder}
-          className={`${className} ${errors[name] ? 'border-red-500' : 'border-gray-300'}`}
-          keyboardType={keyboardType}
-        />
-      )}
-    />
-  );
+  if (Array.isArray(watchedPropertyAppraisal)) {
+    rows = watchedPropertyAppraisal as PropertyAppraisal[];
+    basePath = 'property_appraisal';
+  } else if (watchedPropertyAppraisal && Array.isArray(watchedPropertyAppraisal.general_description)) {
+    rows = watchedPropertyAppraisal.general_description as PropertyAppraisal[];
+    basePath = 'property_appraisal.general_description';
+  } else if (watchedPropertyAppraisal && typeof watchedPropertyAppraisal === 'object' && (watchedPropertyAppraisal.description !== undefined || watchedPropertyAppraisal.area !== undefined)) {
+    // single object case: wrap into an array and render controllers without an index
+    rows = [watchedPropertyAppraisal as PropertyAppraisal];
+    basePath = 'property_appraisal';
+    isSingleObject = true;
+  } else {
+    rows = [];
+  }
 
-  const renderReadOnlyField = (value: string, className: string, bgColor: string = 'bg-gray-100') => (
-    <View className={`${className} ${bgColor} rounded px-2 py-2 mr-1 border border-gray-300`}>
-      <Text className="text-xs font-rubik text-center">{value || '0.00'}</Text>
-    </View>
-  );
+  const totalBaseMarketValue = rows.reduce((sum: number, item: PropertyAppraisal) => {
+    return sum + (parseFloat(String(item.baseMarketValue)) || 0);
+  }, 0);
+
+  const totalDepreciationCost = rows.reduce((sum: number, item: PropertyAppraisal) => {
+    return sum + (parseFloat(String(item.depreciationCost)) || 0);
+  }, 0);
+
+  const totalMarketValue = rows.reduce((sum: number, item: PropertyAppraisal) => {
+    return sum + (parseFloat(String(item.marketValue)) || 0);
+  }, 0);
 
   return (
-    <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <Text className="text-lg font-rubik-bold text-black-300 mb-4">Property Appraisal</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Property Appraisal</Text>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={true}
-        contentContainerStyle={{ minWidth: 800 }}
-      >
-        <View style={{ minWidth: 800 }}>
-          {/* Parent Header Row */}
-          <View className="flex flex-row bg-primary-300 rounded-t-lg">
-            <Text className="text-white text-xs font-rubik-bold w-60 text-center p-2 border-r border-white/20">Description</Text>
-            <Text className="text-white text-xs font-rubik-bold w-24 text-center p-2 border-r border-white/20">Area (SQM)</Text>
-            <Text className="text-white text-xs font-rubik-bold w-24 text-center p-2 border-r border-white/20">Unit Value</Text>
-            <Text className="text-white text-xs font-rubik-bold w-24 text-center p-2 border-r border-white/20">% of BUCC</Text>
-            <Text className="text-white text-xs font-rubik-bold w-28 text-center p-2 border-r border-white/20">Base Market Value</Text>
-            <Text className="text-white text-xs font-rubik-bold w-20 text-center p-2 border-r border-white/20">% Depn</Text>
-            <Text className="text-white text-xs font-rubik-bold w-28 text-center p-2 border-r border-white/20">Depreciation Cost</Text>
-            <Text className="text-white text-xs font-rubik-bold w-24 text-center p-2">Market Value</Text>
+      <View style={styles.tableCard}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.tableInner}>
+            {/* Header */}
+            <View style={styles.headerRow}>
+              {headers.map((h) => (
+                <View
+                  key={String(h.key)}
+                  style={[styles.headerCell, { minWidth: h.minWidth }]}
+                >
+                  <Text style={styles.headerText}>{h.title}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Body - rows controlled by react-hook-form */}
+            <View>
+              {rows.length === 0 ? (
+                <View style={styles.emptyRow}>
+                  <Text style={styles.emptyText}>No property appraisal data</Text>
+                </View>
+              ) : (
+                rows.map((_row: PropertyAppraisal, rowIndex: number) => (
+                  <View key={rowIndex} style={styles.row}>
+                    {headers.map((h) => {
+                      const controllerName = isSingleObject
+                        ? `${basePath}.${String(h.key)}`
+                        : `${basePath}.${rowIndex}.${String(h.key)}`;
+
+                      return (
+                        <View
+                          key={`${rowIndex}-${String(h.key)}`}
+                          style={[styles.cell, { minWidth: h.minWidth }]}
+                        >
+                          <Controller
+                            control={control}
+                            name={controllerName}
+                            render={({ field: { value } }) => {
+                              const isAreaColumn = String(h.key) === 'area';
+                              const isUnitColumn = String(h.key) === 'unit_value';
+                              const isBaseColumn = String(h.key) === 'baseMarketValue';
+                              const fieldString = value !== undefined && value !== null ? String(value) : '';
+
+                              let displayValue = fieldString;
+
+                              // Description fallback: structuralType + ' ' + kindOfBuilding
+                              if (String(h.key) === 'description' && fieldString.trim() === '') {
+                                const struct = structuralType ? String(structuralType) : '';
+                                const kind = kindOfBuilding ? String(kindOfBuilding) : '';
+                                displayValue = `${struct}${struct && kind ? ' ' : ''}${kind}`.trim();
+                              }
+
+                              if (isAreaColumn && fieldString.trim() === '') {
+                                displayValue = String(totalFloorArea ?? '');
+                              }
+
+                              if (isUnitColumn && fieldString.trim() === '') {
+                                const unitCost = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+                                displayValue = unitCost !== undefined && unitCost !== null ? String(unitCost) : fieldString;
+                              }
+
+                              // Compute base market value as area * unit_value when requested
+                              if (isBaseColumn) {
+                                // Build names for area and unit_value for this row
+                                const areaName = isSingleObject ? `${basePath}.area` : `${basePath}.${rowIndex}.area`;
+                                const unitName = isSingleObject ? `${basePath}.unit_value` : `${basePath}.${rowIndex}.unit_value`;
+
+                                const rawArea = watch(areaName);
+                                const rawUnit = watch(unitName);
+
+                                // Determine numeric area: prefer row area, then totalFloorArea
+                                let numericArea = parseFloat(String(rawArea ?? '')) || 0;
+                                if ((!rawArea || String(rawArea).trim() === '') && totalFloorArea) {
+                                  numericArea = parseFloat(String(totalFloorArea)) || numericArea;
+                                }
+
+                                // Determine numeric unit: prefer row unit, then constructionCosts lookup
+                                let numericUnit = parseFloat(String(rawUnit ?? '')) || 0;
+                                if ((!rawUnit || String(rawUnit).trim() === '')) {
+                                  const unitCost = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+                                  if (unitCost !== undefined && unitCost !== null) numericUnit = Number(unitCost);
+                                }
+
+                                const computed = numericArea * numericUnit;
+                                displayValue = computed ? computed.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0';
+                              }
+
+                              // BUCC (SMV) default/display: show 100% when empty; ensure a '%' suffix
+                              if (String(h.key) === 'bucc') {
+                                const trimmed = displayValue.trim();
+                                if (!trimmed) {
+                                  displayValue = '100%';
+                                } else if (!trimmed.endsWith('%')) {
+                                  displayValue = `${trimmed}%`;
+                                }
+                              }
+                              return (
+                                <TextInput
+                                  value={displayValue || ''}
+                                  style={styles.readOnlyInput}
+                                  editable={false}
+                                  selectTextOnFocus={false}
+                                />
+                              );
+                            }}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))
+              )}
+            </View>
           </View>
-          
-          {/* Single Data Row */}
-          <View className="flex flex-row items-center border border-gray-300 border-t-0 p-2 bg-white">
-            {renderInput(
-              'buildingCore',
-              'Building Core',
-              'w-60 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white',
-              'default',
-              {
-                required: 'Building Core is required',
-                minLength: { value: 1, message: 'Building Core cannot be empty' }
-              }
-            )}
+        </ScrollView>
+      </View>
 
-            {renderInput(
-              'type',
-              'Type',
-              'w-16 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white'
-            )}
-
-            {renderInput(
-              'areaInSqm',
-              '0.00',
-              'w-24 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white',
-              'numeric',
-              {
-                required: 'Area is required',
-                pattern: {
-                  value: /^[0-9.]+$/,
-                  message: 'Area must be a valid number'
-                },
-                min: { value: 0.01, message: 'Area must be greater than 0' }
-              }
-            )}
-
-            {renderInput(
-              'unitValue',
-              '0.00',
-              'w-24 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white',
-              'numeric',
-              {
-                required: 'Unit Value is required',
-                pattern: {
-                  value: /^[0-9.]+$/,
-                  message: 'Unit Value must be a valid number'
-                },
-                min: { value: 0.01, message: 'Unit Value must be greater than 0' }
-              }
-            )}
-
-            {renderInput(
-              'percentOfBUCC',
-              '0.00',
-              'w-24 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white',
-              'numeric',
-              {
-                pattern: {
-                  value: /^[0-9.]+$/,
-                  message: '% of BUCC must be a valid number'
-                },
-                max: { value: 100, message: '% of BUCC cannot exceed 100' }
-              }
-            )}
-
-            {renderReadOnlyField(watchedValues.baseMarketValue, 'w-28')}
-
-            {renderInput(
-              'percentDepreciation',
-              '0.00',
-              'w-20 border border-gray-300 rounded px-2 py-2 text-xs font-rubik mr-1 bg-white',
-              'numeric',
-              {
-                pattern: {
-                  value: /^[0-9.]+$/,
-                  message: '% Depreciation must be a valid number'
-                },
-                max: { value: 100, message: '% Depreciation cannot exceed 100' }
-              }
-            )}
-
-            {renderReadOnlyField(watchedValues.depreciationCost, 'w-28')}
-
-            {renderReadOnlyField(watchedValues.marketValue, 'w-24', 'bg-green-100 border-green-300')}
-          </View>
+      {/* Summary Section */}
+      <View style={styles.summaryContainer}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total Base Market Value:</Text>
+          <Text style={styles.summaryValue}>
+            ₱{totalBaseMarketValue.toLocaleString()}
+          </Text>
         </View>
-      </ScrollView>
-
-      {/* Error Messages */}
-      {Object.keys(errors).length > 0 && (
-        <View className="mt-2 p-2 bg-red-50 rounded-lg">
-          {Object.entries(errors).map(([field, error]) => (
-            <Text key={field} className="text-red-500 text-xs font-rubik">
-              • {error?.message}
-            </Text>
-          ))}
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total Depreciation Cost:</Text>
+          <Text style={styles.summaryValue}>
+            ₱{totalDepreciationCost.toLocaleString()}
+          </Text>
         </View>
-      )}
-
-      <View className="mt-4 p-3 bg-blue-50 rounded-lg">
-        <Text className="text-sm font-rubik-bold text-blue-800 mb-2">Calculation Notes:</Text>
-        <Text className="text-xs font-rubik text-blue-700">• Base Market Value = Area × Unit Value × (% of BUCC ÷ 100)</Text>
-        <Text className="text-xs font-rubik text-blue-700">• Depreciation Cost = Base Market Value × (% Depreciation ÷ 100)</Text>
-        <Text className="text-xs font-rubik text-blue-700">• Market Value = Base Market Value - Depreciation Cost</Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total Market Value:</Text>
+          <Text style={[styles.summaryValue, styles.totalValue]}>
+            ₱{totalMarketValue.toLocaleString()}
+          </Text>
+        </View>
       </View>
     </View>
   );
 };
 
-export default PropertyAppraisalForm;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    padding: 16
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#111827'
+  },
+  tableCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 16
+  },
+  tableInner: {
+    minWidth: 900
+  },
+  headerRow: {
+    flexDirection: 'row',
+    backgroundColor: '#2563eb'
+  },
+  headerCell: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#1e40af',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerText: {
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center'
+  },
+  row: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb'
+  },
+  cell: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  emptyRow: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  emptyText: {
+    color: '#6b7280',
+    fontSize: 14
+  },
+  readOnlyInput: {
+    width: '100%',
+    padding: 6,
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 4
+  },
+  summaryContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6'
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151'
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669'
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#065f46'
+  }
+});
+
+export default PropertyAppraisalFormAdapted;

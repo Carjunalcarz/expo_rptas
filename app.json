@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "restate",
-    "slug": "restate",
+    "name": "expo_rptas",
+    "slug": "Real Property Tax Appraisal System",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {

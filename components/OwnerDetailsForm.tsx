@@ -7,11 +7,47 @@ import {
 import React from 'react'
 import { useFormContext, Controller } from 'react-hook-form'
 
+// Validation utility
+const validationRules = {
+  required: (label: string) => ({
+    required: `${label} is required`,
+    minLength: {
+      value: 1,
+      message: `${label} cannot be empty`
+    }
+  }),
+  numeric: (label: string) => ({
+    pattern: {
+      value: /^[0-9-]+$/,
+      message: `${label} must be a valid number`
+    }
+  }),
+  phone: (label: string) => ({
+    pattern: {
+      value: /^[0-9+\-\s()]+$/,
+      message: `${label} must be a valid phone number`
+    }
+  })
+};
+
 const OwnerDetailsForm: React.FC = () => {
   const { control, watch, formState: { errors } } = useFormContext();
 
   // Watch toggle for conditional rendering
   const hasAdministratorBeneficiary = watch('owner_details.hasAdministratorBeneficiary');
+
+  // Helper function to get nested errors
+  const getError = (path: string) => {
+    const pathParts = path.split('.');
+    let current: any = errors;
+
+    for (const part of pathParts) {
+      if (!current) return undefined;
+      current = current[part];
+    }
+
+    return current;
+  };
 
   const renderInput = (
     name: string,
@@ -20,54 +56,48 @@ const OwnerDetailsForm: React.FC = () => {
     keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default',
     multiline = false,
     rules?: any
-  ) => (
-    <View className="mb-4">
-      <Text className="text-base font-rubik-medium text-black-300 mb-2">
-        {label} <Text className="text-red-500">*</Text>
-      </Text>
-      <Controller
-        control={control}
-        name={name}
-        rules={rules || {
-          required: `${label} is required`,
-          minLength: {
-            value: 1,
-            message: `${label} cannot be empty`
-          },
-          ...(keyboardType === 'numeric' && {
-            pattern: {
-              value: /^[0-9-]+$/,
-              message: `${label} must be a valid number`
-            }
-          }),
-          ...(keyboardType === 'phone-pad' && {
-            pattern: {
-              value: /^[0-9+\-\s()]+$/,
-              message: `${label} must be a valid phone number`
-            }
-          })
-        }}
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white ${multiline ? 'h-20' : 'h-12'
-              } ${errors[name] ? 'border-red-500' : 'border-gray-300'}`}
-            keyboardType={keyboardType}
-            multiline={multiline}
-            textAlignVertical={multiline ? 'top' : 'center'}
-          />
-        )}
-      />
-      {errors[name] && (
-        <Text className="text-red-500 text-sm font-rubik mt-1">
-          {errors[name]?.message as string}
+  ) => {
+    const error = getError(name);
+
+    return (
+      <View className="mb-4">
+        <Text className="text-base font-rubik-medium text-black-300 mb-2">
+          {label} <Text className="text-red-500">*</Text>
         </Text>
-      )}
-    </View>
-  );
+        <Controller
+          control={control}
+          name={name}
+          rules={rules || {
+            required: `${label} is required`,
+            minLength: {
+              value: 1,
+              message: `${label} cannot be empty`
+            },
+            ...(keyboardType === 'numeric' && validationRules.numeric(label)),
+            ...(keyboardType === 'phone-pad' && validationRules.phone(label))
+          }}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white ${multiline ? 'h-20' : 'h-12'
+                } ${error ? 'border-red-500' : 'border-gray-300'}`}
+              keyboardType={keyboardType}
+              multiline={multiline}
+              textAlignVertical={multiline ? 'top' : 'center'}
+            />
+          )}
+        />
+        {error && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">
+            {error.message as string}
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   return (
     <>
@@ -122,7 +152,7 @@ const OwnerDetailsForm: React.FC = () => {
               undefined,
               'default',
               false,
-              { required: 'Administrator/Beneficiary Name is required' }
+              validationRules.required('Administrator/Beneficiary Name')
             )}
 
             {renderInput(
@@ -131,7 +161,7 @@ const OwnerDetailsForm: React.FC = () => {
               'Complete address',
               'default',
               true,
-              { required: 'Administrator/Beneficiary Address is required' }
+              validationRules.required('Administrator/Beneficiary Address')
             )}
 
             {renderInput(
@@ -141,8 +171,8 @@ const OwnerDetailsForm: React.FC = () => {
               'numeric',
               false,
               {
-                required: 'Administrator/Beneficiary TIN is required',
-                pattern: { value: /^[0-9-]+$/, message: 'TIN must be a valid number' }
+                ...validationRules.required('Administrator/Beneficiary TIN'),
+                ...validationRules.numeric('TIN')
               }
             )}
 
@@ -153,8 +183,8 @@ const OwnerDetailsForm: React.FC = () => {
               'phone-pad',
               false,
               {
-                required: 'Administrator/Beneficiary Tel No is required',
-                pattern: { value: /^[0-9+\-\s()]+$/, message: 'Tel No must be a valid phone number' }
+                ...validationRules.required('Administrator/Beneficiary Tel No'),
+                ...validationRules.phone('Tel No')
               }
             )}
           </>

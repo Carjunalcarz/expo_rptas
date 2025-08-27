@@ -1,3 +1,4 @@
+// StructuralMaterialsFormAdapted.tsx
 import {
   View,
   Text,
@@ -6,126 +7,34 @@ import {
   ScrollView
 } from 'react-native'
 import React, { useState } from 'react'
-import { useForm, Controller, useFieldArray } from 'react-hook-form'
+import { useFormContext, Controller, useFieldArray } from 'react-hook-form'
 
-interface FloorMaterial {
+// Define FloorMaterial type
+type FloorMaterial = {
   id: string;
   floorName: string;
   material: string;
   otherSpecify: string;
-}
+};
 
-interface WallPartition {
+// Define WallPartition type
+type WallPartition = {
   id: string;
   wallName: string;
   material: string;
   otherSpecify: string;
-}
+};
 
-interface StructuralFormData {
-  foundation: {
-    reinforceConcrete: boolean;
-    plainConcrete: boolean;
-    others: boolean;
-    othersSpecify: string;
-  };
-  columns: {
-    steel: boolean;
-    reinforceConcrete: boolean;
-    wood: boolean;
-    others: boolean;
-    othersSpecify: string;
-  };
-  beams: {
-    steel: boolean;
-    reinforceConcrete: boolean;
-    others: boolean;
-    othersSpecify: string;
-  };
-  trussFraming: {
-    steel: boolean;
-    wood: boolean;
-    others: boolean;
-    othersSpecify: string;
-  };
-  roof: {
-    reinforceConcrete: boolean;
-    tiles: boolean;
-    giSheet: boolean;
-    aluminum: boolean;
-    asbestos: boolean;
-    longSpan: boolean;
-    concreteDesk: boolean;
-    nipaAnahawCogon: boolean;
-    others: boolean;
-    othersSpecify: string;
-  };
-  flooring: FloorMaterial[];
-  wallsPartitions: WallPartition[];
-}
-
-interface StructuralMaterialsFormProps {
-  defaultValues?: StructuralFormData;
-  onFormChange?: (data: StructuralFormData) => void;
-}
-
-const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
-  defaultValues = {
-    foundation: {
-      reinforceConcrete: false,
-      plainConcrete: false,
-      others: false,
-      othersSpecify: '',
-    },
-    columns: {
-      steel: false,
-      reinforceConcrete: false,
-      wood: false,
-      others: false,
-      othersSpecify: '',
-    },
-    beams: {
-      steel: false,
-      reinforceConcrete: false,
-      others: false,
-      othersSpecify: '',
-    },
-    trussFraming: {
-      steel: false,
-      wood: false,
-      others: false,
-      othersSpecify: '',
-    },
-    roof: {
-      reinforceConcrete: false,
-      tiles: false,
-      giSheet: false,
-      aluminum: false,
-      asbestos: false,
-      longSpan: false,
-      concreteDesk: false,
-      nipaAnahawCogon: false,
-      others: false,
-      othersSpecify: '',
-    },
-    flooring: [{ id: '1', floorName: 'Ground Floor', material: '', otherSpecify: '' }],
-    wallsPartitions: [{ id: '1', wallName: 'Main Wall', material: '', otherSpecify: '' }],
-  },
-  onFormChange,
-}) => {
-  const { control, watch, reset, formState: { errors } } = useForm<StructuralFormData>({
-    defaultValues,
-    mode: 'onChange'
-  });
-
+const StructuralMaterialsFormAdapted: React.FC = () => {
+  const { control, watch, setValue, formState: { errors } } = useFormContext();
   const { fields: flooringFields, append: appendFlooring, remove: removeFlooring } = useFieldArray({
     control,
-    name: 'flooring'
+    name: 'structural_materials.flooring'
   });
 
   const { fields: wallsFields, append: appendWall, remove: removeWall } = useFieldArray({
     control,
-    name: 'wallsPartitions'
+    name: 'structural_materials.wallsPartitions'
   });
 
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
@@ -137,16 +46,6 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     flooring: false,
     walls: false,
   });
-
-  // Watch all form values and call onFormChange when they change
-  const watchedValues = watch();
-
-  // Simple useEffect to call onFormChange when form values change
-  React.useEffect(() => {
-    if (onFormChange) {
-      onFormChange(watchedValues);
-    }
-  }, [watchedValues, onFormChange]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -175,6 +74,19 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
     appendWall(newWall);
   };
 
+  // Helper function to get nested errors
+  const getError = (path: string) => {
+    const pathParts = path.split('.');
+    let current: any = errors;
+
+    for (const part of pathParts) {
+      if (!current) return undefined;
+      current = current[part];
+    }
+
+    return current;
+  };
+
   const renderCheckbox = (
     name: string,
     label: string,
@@ -185,7 +97,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
       onPress={onPress}
       className="flex flex-row items-center mb-3"
     >
-      <View className={`w-5 h-5 border-2 rounded mr-3 flex items-center justify-center ${checked ? 'bg-primary-300 border-primary-300' : 'border-gray-400'
+      <View className={`w-5 h-5 border-2 rounded mr-3 flex items-center justify-center ${checked ? 'bg-blue-600 border-blue-600' : 'border-gray-400'
         }`}>
         {checked && <Text className="text-white text-xs font-bold">✓</Text>}
       </View>
@@ -195,7 +107,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
 
   const renderSection = (
     title: string,
-    sectionKey: keyof StructuralFormData,
+    sectionKey: string,
     items: Array<{ key: string, label: string }>,
     hasOthers: boolean = true
   ) => {
@@ -221,10 +133,10 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
               <Controller
                 key={`${sectionKey}-${item.key}-${index}`}
                 control={control}
-                name={`${sectionKey}.${item.key}` as any}
+                name={`structural_materials.${sectionKey}.${item.key}` as any}
                 render={({ field: { onChange, value } }) =>
                   renderCheckbox(
-                    `${sectionKey}.${item.key}`,
+                    `structural_materials.${sectionKey}.${item.key}`,
                     item.label,
                     value,
                     () => onChange(!value)
@@ -238,10 +150,10 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
               <>
                 <Controller
                   control={control}
-                  name={`${sectionKey}.others` as any}
+                  name={`structural_materials.${sectionKey}.others` as any}
                   render={({ field: { onChange, value } }) =>
                     renderCheckbox(
-                      `${sectionKey}.others`,
+                      `structural_materials.${sectionKey}.others`,
                       'Others (Specify)',
                       value,
                       () => onChange(!value)
@@ -251,9 +163,9 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
 
                 <Controller
                   control={control}
-                  name={`${sectionKey}.othersSpecify` as any}
+                  name={`structural_materials.${sectionKey}.othersSpecify` as any}
                   render={({ field: { onChange, onBlur, value } }) => {
-                    const othersChecked = watch(`${sectionKey}.others` as any)
+                    const othersChecked = watch(`structural_materials.${sectionKey}.others` as any)
                     return (
                       <View>
                         {othersChecked && (
@@ -274,7 +186,6 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
           </View>
         )}
       </View>
-
     );
   };
 
@@ -414,7 +325,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
           <View className="flex flex-row items-center">
             <TouchableOpacity
               onPress={addFloorMaterial}
-              className="bg-primary-300 rounded-full w-6 h-6 flex items-center justify-center mr-2"
+              className="bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center mr-2"
             >
               <Text className="text-white text-sm font-bold">+</Text>
             </TouchableOpacity>
@@ -429,7 +340,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 <View className="flex flex-row items-center justify-between mb-2">
                   <Controller
                     control={control}
-                    name={`flooring.${index}.floorName`}
+                    name={`structural_materials.flooring.${index}.floorName`}
                     rules={{ required: 'Floor name is required' }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
@@ -454,7 +365,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 <View className="mb-2">
                   <Controller
                     control={control}
-                    name={`flooring.${index}.material`}
+                    name={`structural_materials.flooring.${index}.material`}
                     rules={{ required: 'Material selection is required' }}
                     render={({ field: { onChange, value } }) => (
                       <MaterialDropdown
@@ -469,9 +380,9 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 </View>
                 <Controller
                   control={control}
-                  name={`flooring.${index}.otherSpecify`}
+                  name={`structural_materials.flooring.${index}.otherSpecify`}
                   render={({ field: { onChange, onBlur, value } }) => {
-                    const material = watch(`flooring.${index}.material`);
+                    const material = watch(`structural_materials.flooring.${index}.material`);
                     return (
                       <View>
                         {material === 'Others (Specify)' && (
@@ -487,7 +398,6 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                     );
                   }}
                 />
-
               </View>
             ))}
           </View>
@@ -504,7 +414,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
           <View className="flex flex-row items-center">
             <TouchableOpacity
               onPress={addWallPartition}
-              className="bg-primary-300 rounded-full w-6 h-6 flex items-center justify-center mr-2"
+              className="bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center mr-2"
             >
               <Text className="text-white text-sm font-bold">+</Text>
             </TouchableOpacity>
@@ -519,7 +429,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 <View className="flex flex-row items-center justify-between mb-2">
                   <Controller
                     control={control}
-                    name={`wallsPartitions.${index}.wallName`}
+                    name={`structural_materials.wallsPartitions.${index}.wallName`}
                     rules={{ required: 'Wall name is required' }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
@@ -544,7 +454,7 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
                 <View className="mb-2">
                   <Controller
                     control={control}
-                    name={`wallsPartitions.${index}.material`}
+                    name={`structural_materials.wallsPartitions.${index}.material`}
                     rules={{ required: 'Material selection is required' }}
                     render={({ field: { onChange, value } }) => (
                       <MaterialDropdown
@@ -560,9 +470,9 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
 
                 <Controller
                   control={control}
-                  name={`wallsPartitions.${index}.otherSpecify`}
+                  name={`structural_materials.wallsPartitions.${index}.otherSpecify`}
                   render={({ field: { onChange, onBlur, value } }) => {
-                    const material = watch(`wallsPartitions.${index}.material`);
+                    const material = watch(`structural_materials.wallsPartitions.${index}.material`);
                     return (
                       <View>
                         {material === 'Others (Specify)' && (
@@ -585,9 +495,9 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
       </View>
 
       {/* Error Messages */}
-      {Object.keys(errors).length > 0 && (
+      {Object.keys(errors.structural_materials || {}).length > 0 && (
         <View className="mt-2 p-2 bg-red-50 rounded-lg">
-          {Object.entries(errors).map(([field, error]) => (
+          {Object.entries(errors.structural_materials || {}).map(([field, error]) => (
             <Text key={field} className="text-red-500 text-xs font-rubik">
               • {error?.message || `${field} has an error`}
             </Text>
@@ -598,4 +508,4 @@ const StructuralMaterialsForm: React.FC<StructuralMaterialsFormProps> = ({
   );
 };
 
-export default StructuralMaterialsForm;
+export default StructuralMaterialsFormAdapted;

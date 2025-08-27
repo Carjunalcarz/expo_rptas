@@ -1,3 +1,4 @@
+// GeneralDescriptionFormAdapted.tsx
 import {
   View,
   Text,
@@ -11,12 +12,14 @@ import {
   ScrollView
 } from 'react-native'
 import React, { useState } from 'react'
-import { useForm, Controller, useFieldArray } from 'react-hook-form'
+import { useFormContext, Controller, useFieldArray } from 'react-hook-form'
 import * as ImagePicker from 'expo-image-picker'
+import { FloorArea } from '@/types';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const constructionCosts: Record<string, Record<string, number | null>> = {
+// Keep your constructionCosts object here...
+export const constructionCosts: Record<string, Record<string, number | null>> = {
   'I-A': {
     Residential: 1700,
     Accessoria: 0,
@@ -189,77 +192,22 @@ const constructionCosts: Record<string, Record<string, number | null>> = {
   }
 };
 
-interface FloorArea {
-  id: string;
-  floorNumber: string;
-  area: string;
-}
-
-interface GeneralFormData {
-  kindOfBuilding: string;
-  structuralType: string;
-  buildingPermitNo: string;
-  condominiumCCT: string;
-  completionCertificateDate: string;
-  occupancyCertificateDate: string;
-  dateConstructed: string;
-  dateOccupied: string;
-  buildingAge: string;
-  numberOfStoreys: string;
-  floorAreas: FloorArea[];
-  totalFloorArea: string;
-  floorPlanImages: string[];
-}
-
-interface GeneralDescriptionFormProps {
-  defaultValues?: GeneralFormData;
-  onFormChange?: (data: GeneralFormData) => void;
-}
-
-const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
-  defaultValues = {
-    kindOfBuilding: '',
-    structuralType: '',
-    buildingPermitNo: '',
-    condominiumCCT: '',
-    completionCertificateDate: '',
-    occupancyCertificateDate: '',
-    dateConstructed: '',
-    dateOccupied: '',
-    buildingAge: '',
-    numberOfStoreys: '',
-    floorAreas: [{ id: '1', floorNumber: 'Ground Floor', area: '' }],
-    totalFloorArea: '0',
-    floorPlanImages: [],
-  },
-  onFormChange,
-}) => {
-  const { control, watch, setValue, reset, formState: { errors } } = useForm<GeneralFormData>({
-    defaultValues,
-    mode: 'onChange'
-  });
-
+const GeneralDescriptionFormAdapted: React.FC = () => {
+  const { control, watch, setValue, formState: { errors } } = useFormContext();
   const { fields: floorFields, append: appendFloor, remove: removeFloor } = useFieldArray({
     control,
-    name: 'floorAreas'
+    name: 'general_description.floorAreas'
   });
 
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [availableBuildingTypes, setAvailableBuildingTypes] = useState<string[]>([]);
 
-  // Watch all form values and call onFormChange when they change
-  const watchedValues = watch();
-  const structuralType = watch('structuralType');
-  const kindOfBuilding = watch('kindOfBuilding');
-  const floorAreas = watch('floorAreas');
-
-  // Simple useEffect to call onFormChange when form values change
-  React.useEffect(() => {
-    if (onFormChange) {
-      onFormChange(watchedValues);
-    }
-  }, [watchedValues, onFormChange]);
+  // Watch form values
+  const structuralType = watch('general_description.structuralType');
+  const kindOfBuilding = watch('general_description.kindOfBuilding');
+  const floorAreas = watch('general_description.floorAreas');
+  const floorPlanImages = watch('general_description.floorPlanImages');
 
   // Update available building types when structural type changes
   React.useEffect(() => {
@@ -270,61 +218,78 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
 
       // Reset kind of building when structural type changes
       if (kindOfBuilding && !buildingTypes.includes(kindOfBuilding)) {
-        setValue('kindOfBuilding', '');
+        setValue('general_description.kindOfBuilding', '');
       }
     }
   }, [structuralType, kindOfBuilding, setValue]);
 
   // Calculate total floor area
   React.useEffect(() => {
-    const total = floorAreas.reduce((sum, floor) => {
+    const total = floorAreas?.reduce((sum: number, floor: FloorArea) => {
       const area = parseFloat(floor.area) || 0;
       return sum + area;
-    }, 0);
-    setValue('totalFloorArea', total.toString());
+    }, 0) || 0;
+    setValue('general_description.totalFloorArea', total.toString());
   }, [floorAreas, setValue]);
 
+  // Helper function to get nested errors
+  const getError = (path: string) => {
+    const pathParts = path.split('.');
+    let current: any = errors;
+
+    for (const part of pathParts) {
+      if (!current) return undefined;
+      current = current[part];
+    }
+
+    return current;
+  };
+
   const renderInput = (
-    name: keyof GeneralFormData,
+    name: string,
     label: string,
     placeholder?: string,
     keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default',
     rules?: any
-  ) => (
-    <View className="mb-4">
-      <Text className="text-base font-rubik-medium text-black-300 mb-2">
-        {label} <Text className="text-red-500">*</Text>
-      </Text>
-      <Controller
-        control={control}
-        name={name}
-        rules={rules || {
-          required: `${label} is required`,
-          minLength: {
-            value: 1,
-            message: `${label} cannot be empty`
-          }
-        }}
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            value={Array.isArray(value) ? value.join(', ') : value || ''}
-            onChangeText={onChange}
-            placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-            className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${errors?.[name] ? 'border-red-500' : 'border-gray-300'
-              }`}
-            keyboardType={keyboardType}
-            textAlignVertical="center"
-          />
+  ) => {
+    const error = getError(name);
 
-        )}
-      />
-      {errors[name] && (
-        <Text className="text-red-500 text-sm font-rubik mt-1">
-          {errors[name]?.message}
+    return (
+      <View className="mb-4">
+        <Text className="text-base font-rubik-medium text-black-300 mb-2">
+          {label} <Text className="text-red-500">*</Text>
         </Text>
-      )}
-    </View>
-  );
+        <Controller
+          control={control}
+          name={name}
+          rules={rules || {
+            required: `${label} is required`,
+            minLength: {
+              value: 1,
+              message: `${label} cannot be empty`
+            }
+          }}
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              placeholder={placeholder || `Enter ${label.toLowerCase()}`}
+              className={`border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-white h-12 ${error ? 'border-red-500' : 'border-gray-300'
+                }`}
+              keyboardType={keyboardType}
+              textAlignVertical="center"
+            />
+          )}
+        />
+        {error && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">
+            {error.message as string}
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   const addFloorArea = () => {
     const newFloor: FloorArea = {
@@ -363,9 +328,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        const currentImages = watch('floorPlanImages');
+        const currentImages = watch('general_description.floorPlanImages') || [];
         const newImages = [...currentImages, result.assets[0].uri];
-        setValue('floorPlanImages', newImages);
+        setValue('general_description.floorPlanImages', newImages);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo');
@@ -387,10 +352,10 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const currentImages = watch('floorPlanImages');
+        const currentImages = watch('general_description.floorPlanImages') || [];
         const newImageUris = result.assets.map(asset => asset.uri);
         const updatedImages = [...currentImages, ...newImageUris];
-        setValue('floorPlanImages', updatedImages);
+        setValue('general_description.floorPlanImages', updatedImages);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick images');
@@ -398,9 +363,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
   };
 
   const removeImage = (index: number) => {
-    const currentImages = watch('floorPlanImages');
-    const updatedImages = currentImages.filter((_, i) => i !== index);
-    setValue('floorPlanImages', updatedImages);
+    const currentImages = watch('general_description.floorPlanImages') || [];
+    const updatedImages = currentImages.filter((_: string, i: number) => i !== index);
+    setValue('general_description.floorPlanImages', updatedImages);
   };
 
   const openGallery = (index: number) => {
@@ -427,7 +392,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
   );
 
   const renderDropdown = (
-    name: keyof GeneralFormData,
+    name: string,
     options: string[],
     placeholder: string = "Select option",
     rules?: any
@@ -443,15 +408,13 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           <View className="relative">
             <TouchableOpacity
               onPress={() => setIsOpen(!isOpen)}
-              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${errors[name] ? 'border-red-500' : 'border-gray-300'
+              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${getError(name) ? 'border-red-500' : 'border-gray-300'
                 }`}
             >
               <Text
                 className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}
               >
-                {Array.isArray(value)
-                  ? value.map((v: any) => (typeof v === 'string' ? v : JSON.stringify(v))).join(', ')
-                  : value || placeholder}
+                {value || placeholder}
               </Text>
 
               <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
@@ -491,8 +454,6 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
     </View>
   );
 
-  const floorPlanImages = watch('floorPlanImages');
-
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <Text className="text-lg font-rubik-bold text-black-300 mb-4">General Description</Text>
@@ -503,14 +464,14 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           Structural Type <Text className="text-red-500">*</Text>
         </Text>
         {renderDropdown(
-          'structuralType',
+          'general_description.structuralType',
           Object.keys(constructionCosts),
           "Select structural type",
           { required: 'Structural Type is required' }
         )}
-        {errors.structuralType && (
+        {getError('general_description.structuralType') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.structuralType?.message}
+            {getError('general_description.structuralType')?.message as string}
           </Text>
         )}
       </View>
@@ -521,14 +482,14 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           Kind of Building <Text className="text-red-500">*</Text>
         </Text>
         {renderDropdown(
-          'kindOfBuilding',
+          'general_description.kindOfBuilding',
           availableBuildingTypes,
           structuralType ? "Select kind of building" : "Select structural type first",
           { required: 'Kind of Building is required' }
         )}
-        {errors.kindOfBuilding && (
+        {getError('general_description.kindOfBuilding') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
-            {errors.kindOfBuilding?.message}
+            {getError('general_description.kindOfBuilding')?.message as string}
           </Text>
         )}
         {structuralType && kindOfBuilding && (
@@ -540,21 +501,14 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
         )}
       </View>
 
-      {renderInput('buildingPermitNo', 'Bldg. Permit No.', 'Building permit number')}
-
-      {renderInput('condominiumCCT', 'Condominium Certificate of Title (CCT)', 'CCT number if applicable')}
-
-      {renderInput('completionCertificateDate', 'Certificate of Completion Issued On', 'MM/DD/YYYY')}
-
-      {renderInput('occupancyCertificateDate', 'Certificate of Occupancy Issued On', 'MM/DD/YYYY')}
-
-      {renderInput('dateConstructed', 'Date Constructed / Completed', 'MM/DD/YYYY')}
-
-      {renderInput('dateOccupied', 'Date Occupied', 'MM/DD/YYYY')}
-
-      {renderInput('buildingAge', 'Building Age', 'Age in years', 'numeric')}
-
-      {renderInput('numberOfStoreys', 'No of Storeys', 'Number of floors', 'numeric')}
+      {renderInput('general_description.buildingPermitNo', 'Bldg. Permit No.', 'Building permit number')}
+      {renderInput('general_description.condominiumCCT', 'Condominium Certificate of Title (CCT)', 'CCT number if applicable')}
+      {renderInput('general_description.completionCertificateDate', 'Certificate of Completion Issued On', 'MM/DD/YYYY')}
+      {renderInput('general_description.occupancyCertificateDate', 'Certificate of Occupancy Issued On', 'MM/DD/YYYY')}
+      {renderInput('general_description.dateConstructed', 'Date Constructed / Completed', 'MM/DD/YYYY')}
+      {renderInput('general_description.dateOccupied', 'Date Occupied', 'MM/DD/YYYY')}
+      {renderInput('general_description.buildingAge', 'Building Age', 'Age in years', 'numeric')}
+      {renderInput('general_description.numberOfStoreys', 'No of Storeys', 'Number of floors', 'numeric')}
 
       {/* Dynamic Floor Areas */}
       <View className="mb-4">
@@ -564,7 +518,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           </Text>
           <TouchableOpacity
             onPress={addFloorArea}
-            className="bg-primary-300 rounded-full w-8 h-8 flex items-center justify-center"
+            className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center"
           >
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
@@ -575,7 +529,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
             <View className="flex-1 mr-3">
               <Controller
                 control={control}
-                name={`floorAreas.${index}.floorNumber`}
+                name={`general_description.floorAreas.${index}.floorNumber`}
                 rules={{ required: 'Floor name is required' }}
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
@@ -589,7 +543,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               />
               <Controller
                 control={control}
-                name={`floorAreas.${index}.area`}
+                name={`general_description.floorAreas.${index}.area`}
                 rules={{
                   required: 'Area is required',
                   pattern: {
@@ -628,7 +582,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
         </Text>
         <View className="border border-gray-300 rounded-lg px-4 py-3 bg-gray-100">
           <Text className="text-base font-rubik text-black-300">
-            {watchedValues.totalFloorArea || '0'} sq.m
+            {watch('general_description.totalFloorArea') || '0'} sq.m
           </Text>
         </View>
       </View>
@@ -641,13 +595,13 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           </Text>
           <TouchableOpacity
             onPress={showImageOptions}
-            className="bg-primary-300 rounded-full w-8 h-8 flex items-center justify-center"
+            className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center"
           >
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
         </View>
 
-        {floorPlanImages.length > 0 ? (
+        {floorPlanImages && floorPlanImages.length > 0 ? (
           <View>
             <FlatList
               data={floorPlanImages}
@@ -690,7 +644,7 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
               <Text className="text-white text-lg font-bold">×</Text>
             </TouchableOpacity>
             <Text className="text-white text-base font-rubik-medium">
-              {selectedImageIndex + 1} of {floorPlanImages.length}
+              {selectedImageIndex + 1} of {floorPlanImages?.length || 0}
             </Text>
             <TouchableOpacity
               onPress={() => {
@@ -728,9 +682,9 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
           />
 
           {/* Image Indicators */}
-          {floorPlanImages.length > 1 && (
+          {floorPlanImages && floorPlanImages.length > 1 && (
             <View className="absolute bottom-12 left-0 right-0 flex flex-row justify-center">
-              {floorPlanImages.map((_, index) => (
+              {floorPlanImages.map((image: string, index: number) => (
                 <View
                   key={index}
                   className={`w-2 h-2 rounded-full mx-1 ${index === selectedImageIndex ? 'bg-white' : 'bg-white/50'
@@ -745,4 +699,4 @@ const GeneralDescriptionForm: React.FC<GeneralDescriptionFormProps> = ({
   );
 };
 
-export default GeneralDescriptionForm;
+export default GeneralDescriptionFormAdapted;
