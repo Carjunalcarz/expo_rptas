@@ -17,6 +17,101 @@ import AdditionalItems from '../../../../components/AdditionalItems';
 import PropertyAssessment from '../../../../components/PropertyAssessment';
 import { PRIMARY_COLOR } from '../../../../constants/colors';
 
+// --- Interfaces restored for AddAssessment form ---
+interface AdministratorBeneficiaryData {
+    name: string;
+    address: string;
+    tin?: string;
+    telNo?: string;
+}
+
+interface OwnerDetailsData {
+    owner?: string;
+    address?: string;
+    tin?: string;
+    telNo?: string;
+    hasAdministratorBeneficiary?: boolean;
+    administratorBeneficiary?: AdministratorBeneficiaryData;
+    transactionCode?: string;
+    tdArp?: string;
+    pin?: string;
+}
+
+interface BuildingLocationData {
+    street?: string;
+    barangay?: string;
+    municipality?: string;
+    province?: string;
+}
+
+interface LandReferenceData {
+    owner?: string;
+    titleNumber?: string;
+    lotNumber?: string;
+    blockNumber?: string;
+    surveyNumber?: string;
+    tdnArpNumber?: string;
+    area?: string;
+}
+
+interface FloorArea { id?: string; floorNumber?: string; area?: string }
+
+interface GeneralFormData {
+    kindOfBuilding?: string;
+    structuralType?: string;
+    buildingPermitNo?: string;
+    condominiumCCT?: string;
+    completionCertificateDate?: string;
+    occupancyCertificateDate?: string;
+    dateConstructed?: string;
+    dateOccupied?: string;
+    buildingAge?: string;
+    numberOfStoreys?: string;
+    floorAreas?: FloorArea[];
+    totalFloorArea?: string;
+    floorPlanImages?: string[];
+}
+
+interface StructuralFormData { [key: string]: any }
+
+interface Description { kindOfBuilding?: string; structuralType?: string }
+
+interface PropertyAppraisal {
+    description?: Description[];
+    area?: string;
+    unit_value?: string;
+    bucc?: string;
+    baseMarketValue?: string;
+    depreciation?: string;
+    depreciationCost?: string;
+    marketValue?: string;
+}
+
+interface PropertyAssessment {
+    id?: number;
+    market_value?: number;
+    building_category?: string;
+    assessment_level?: string;
+    assessment_value?: number;
+    taxable?: number;
+    eff_year?: string;
+    eff_quarter?: string;
+    total_area?: string;
+}
+
+interface AssessmentFormData {
+    owner_details?: OwnerDetailsData;
+    building_location?: BuildingLocationData;
+    land_reference?: LandReferenceData;
+    general_description?: GeneralFormData;
+    structural_materials?: StructuralFormData;
+    property_appraisal?: PropertyAppraisal;
+    property_assessment?: PropertyAssessment;
+    additionalItems?: any[];
+    additionalItem?: string;
+}
+
+
 const AddAssessment: React.FC = () => {
     const methods = useForm<any>({ defaultValues: {} });
     const { handleSubmit, reset, getValues } = methods;
