@@ -8,6 +8,8 @@ import {
 } from 'react-native'
 import React, { useState } from 'react'
 import { useFormContext, Controller, useFieldArray } from 'react-hook-form'
+import { PRIMARY_COLOR } from '../constants/colors';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Define FloorMaterial type
 type FloorMaterial = {
@@ -97,8 +99,10 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
       onPress={onPress}
       className="flex flex-row items-center mb-3"
     >
-      <View className={`w-5 h-5 border-2 rounded mr-3 flex items-center justify-center ${checked ? 'bg-blue-600 border-blue-600' : 'border-gray-400'
-        }`}>
+      <View
+        className="w-5 h-5 border-2 rounded mr-3 flex items-center justify-center"
+        style={{ backgroundColor: checked ? PRIMARY_COLOR : undefined, borderColor: checked ? PRIMARY_COLOR : '#9CA3AF' }}
+      >
         {checked && <Text className="text-white text-xs font-bold">✓</Text>}
       </View>
       <Text className="text-sm font-rubik text-black-300 flex-1">{label}</Text>
@@ -276,7 +280,10 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <Text className="text-lg font-rubik-bold text-black-300 mb-4">Structural Materials</Text>
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold text-gray-800">STRUCTURAL MATERIALS</Text>
+        <Icon name="assessment" size={24} color="#2c3e50" />
+      </View>
 
       {/* Foundation */}
       {renderSection('Foundation', 'foundation', [
@@ -325,7 +332,8 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
           <View className="flex flex-row items-center">
             <TouchableOpacity
               onPress={addFloorMaterial}
-              className="bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center mr-2"
+              style={{ backgroundColor: PRIMARY_COLOR }}
+              className="rounded-full w-6 h-6 flex items-center justify-center mr-2"
             >
               <Text className="text-white text-sm font-bold">+</Text>
             </TouchableOpacity>
@@ -414,7 +422,8 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
           <View className="flex flex-row items-center">
             <TouchableOpacity
               onPress={addWallPartition}
-              className="bg-blue-600 rounded-full w-6 h-6 flex items-center justify-center mr-2"
+              className="rounded-full w-6 h-6 flex items-center justify-center mr-2"
+              style={{ backgroundColor: PRIMARY_COLOR }}
             >
               <Text className="text-white text-sm font-bold">+</Text>
             </TouchableOpacity>

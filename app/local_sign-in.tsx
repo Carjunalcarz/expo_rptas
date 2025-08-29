@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { PRIMARY_COLOR } from '../constants/colors';
 import { useForm, Controller } from "react-hook-form";
 import { ArrowLeft } from "lucide-react-native";
 import { login } from "@/lib/auth";
@@ -70,7 +71,7 @@ const LoginForm: React.FC = () => {
     if (loading) {
         return (
             <View className="flex-1 justify-center items-center bg-white">
-                <ActivityIndicator size="large" color="#2563eb" />
+                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                 <Text className="mt-4 text-gray-600">Checking authentication...</Text>
             </View>
         );

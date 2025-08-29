@@ -9,11 +9,11 @@ export function pushPath(path: { pathname: string; params?: Record<string, strin
 }
 
 export function navigateToAssessment(localId: string | number) {
-  pushPath({ pathname: '/(root)/(tabs)/(assessment)/[id]', params: { id: String(localId) } });
+  pushPath({ pathname: '/(root)/assessment/[id]', params: { id: String(localId) } });
 }
 
 export function navigateToAddAssessment() {
-  pushPath({ pathname: '/(root)/(tabs)/(assessment)/add_assessment' });
+  pushPath({ pathname: '/(root)/assessment/add_assessment' });
 }
 
 export default { pushPath, navigateToAssessment, navigateToAddAssessment };

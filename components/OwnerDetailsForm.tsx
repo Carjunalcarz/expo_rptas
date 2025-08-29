@@ -6,6 +6,8 @@ import {
 } from 'react-native'
 import React from 'react'
 import { useFormContext, Controller } from 'react-hook-form'
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { PRIMARY_COLOR } from '@/constants/colors';
 
 // Validation utility
 const validationRules = {
@@ -103,10 +105,10 @@ const OwnerDetailsForm: React.FC = () => {
     <>
       {/* Property Information */}
       <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-        <Text className="text-lg font-rubik-bold text-black-300 mb-4">
-          Property Information
-        </Text>
-
+        <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+          <Text className="text-lg font-bold text-gray-800">PROPERTY INFORMATION</Text>
+          <Icon name="assessment" size={24} color="#2c3e50" />
+        </View>
         {renderInput('owner_details.transactionCode', 'Transaction Code')}
         {renderInput('owner_details.tdArp', 'TD/ARP')}
         {renderInput('owner_details.pin', 'PIN', 'Property Identification Number')}
@@ -114,9 +116,10 @@ const OwnerDetailsForm: React.FC = () => {
 
       {/* Owner Information */}
       <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-        <Text className="text-lg font-rubik-bold text-black-300 mb-4">
-          Owner Information
-        </Text>
+        <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+          <Text className="text-lg font-bold text-gray-800">OWNER INFORMATION</Text>
+          <Icon name="assessment" size={24} color="#2c3e50" />
+        </View>
 
         {renderInput('owner_details.owner', 'Owner Name')}
         {renderInput('owner_details.address', 'Address', 'Complete address', 'default', true)}
@@ -127,9 +130,10 @@ const OwnerDetailsForm: React.FC = () => {
       {/* Administrator/Beneficiary Section */}
       <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
         <View className="flex flex-row items-center justify-between mb-4">
-          <Text className="text-lg font-rubik-bold text-black-300">
-            Administrator/Beneficiary
-          </Text>
+          <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+            <Text className="text-lg font-bold text-gray-800">ADMINISTRATOR / BENEFICIARY</Text>
+            <Icon name="assessment" size={24} color="#2c3e50" />
+          </View>
           <Controller
             control={control}
             name="owner_details.hasAdministratorBeneficiary"
@@ -137,7 +141,7 @@ const OwnerDetailsForm: React.FC = () => {
               <Switch
                 value={value}
                 onValueChange={onChange}
-                trackColor={{ false: '#e5e7eb', true: '#3b82f6' }}
+                trackColor={{ false: '#e5e7eb', true: PRIMARY_COLOR }}
                 thumbColor={value ? '#ffffff' : '#f3f4f6'}
               />
             )}

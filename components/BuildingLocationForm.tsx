@@ -1,6 +1,8 @@
 import { View, Text, TextInput } from 'react-native';
 import React from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { PRIMARY_COLOR } from '@/constants/colors';
 
 const BuildingLocationForm: React.FC = () => {
   const { control, formState: { errors } } = useFormContext();
@@ -68,9 +70,10 @@ const BuildingLocationForm: React.FC = () => {
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <Text className="text-lg font-rubik-bold text-black-300 mb-4">
-        Building Location
-      </Text>
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold text-gray-800">BUILDING LOCATION</Text>
+        <Icon name="assessment" size={24} color="#2c3e50" />
+      </View>
 
       {renderInput('building_location.street', 'No. / Street', 'House/Building No. and Street')}
       {renderInput('building_location.barangay', 'Barangay', 'Barangay name')}

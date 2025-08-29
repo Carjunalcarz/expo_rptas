@@ -1,17 +1,21 @@
-// PropertyAppraisalFormAdapted.tsx
 import React from 'react';
 import {
   View,
   Text,
   ScrollView,
   TextInput,
-  StyleSheet
 } from 'react-native';
-import { useFormContext, Controller } from 'react-hook-form';
+import { useFormContext, Controller, useWatch } from 'react-hook-form';
 import { constructionCosts } from './GeneralDescriptionForm';
+import { PRIMARY_COLOR } from '../constants/colors';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
+interface Description {
+  kindOfBuilding: string;
+  structuralType: string;
+}
 interface PropertyAppraisal {
-  description: string;
+  description: Description[];
   area: string;
   unit_value: string;
   bucc: string;
@@ -32,16 +36,16 @@ const headers: { key: keyof PropertyAppraisal; title: string; minWidth: number }
   { key: 'marketValue', title: 'Market Value', minWidth: 160 }
 ];
 
-const PropertyAppraisalFormAdapted: React.FC = () => {
-  const { control, watch } = useFormContext<any>();
+const PropertyAppraisalForm: React.FC = () => {
+  const { control, watch, setValue } = useFormContext<any>();
 
-  // Get total floor area from general description to auto-populate the area field
-  const totalFloorArea = watch('general_description.totalFloorArea');
-  const structuralType = watch('general_description.structuralType');
-  const kindOfBuilding = watch('general_description.kindOfBuilding');
+  // Subscribe to these fields so changes trigger recomputation
+  const totalFloorArea = useWatch({ control, name: 'general_description.totalFloorArea' });
+  const structuralType = useWatch({ control, name: 'general_description.structuralType' });
+  const kindOfBuilding = useWatch({ control, name: 'general_description.kindOfBuilding' });
 
-  // Calculate totals for summary
-  const watchedPropertyAppraisal = watch('property_appraisal');
+  // Calculate totals for summary - subscribe to property_appraisal changes
+  const watchedPropertyAppraisal = useWatch({ control, name: 'property_appraisal' });
 
   // property_appraisal may be:
   // - an array of items, OR
@@ -67,6 +71,128 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
     rows = [];
   }
 
+  // Persist computed and fallback values into form state for each row inside effect to avoid setState-in-render
+  const prevRef = React.useRef({ totalFloorArea, structuralType, kindOfBuilding });
+
+  React.useEffect(() => {
+    // collect current values and compute desired ones, then call setValue only when different
+    // effect triggered
+    const descChanged = prevRef.current.structuralType !== structuralType || prevRef.current.kindOfBuilding !== kindOfBuilding;
+    const areaChanged = prevRef.current.totalFloorArea !== totalFloorArea;
+    rows.forEach((r, idx) => {
+      // processing row
+      const descriptionName = isSingleObject ? `${basePath}.description` : `${basePath}.${idx}.description`;
+      const curDesc = watch(descriptionName);
+      const desiredDesc = [{ kindOfBuilding: String(kindOfBuilding || ''), structuralType: String(structuralType || '') }];
+      const descDifferent = (() => {
+        if (!curDesc) return true;
+        try {
+          if (Array.isArray(curDesc)) {
+            const first = curDesc[0] || {};
+            return (String(first.kindOfBuilding || '') !== String(desiredDesc[0].kindOfBuilding)) || (String(first.structuralType || '') !== String(desiredDesc[0].structuralType));
+          }
+          return true;
+        } catch (e) {
+          return true;
+        }
+      })();
+      if (descDifferent) {
+        setValue(descriptionName, desiredDesc);
+      }
+
+      const areaName = isSingleObject ? `${basePath}.area` : `${basePath}.${idx}.area`;
+      const unitName = isSingleObject ? `${basePath}.unit_value` : `${basePath}.${idx}.unit_value`;
+      const buccName = isSingleObject ? `${basePath}.bucc` : `${basePath}.${idx}.bucc`;
+      const baseName = isSingleObject ? `${basePath}.baseMarketValue` : `${basePath}.${idx}.baseMarketValue`;
+      const depName = isSingleObject ? `${basePath}.depreciation` : `${basePath}.${idx}.depreciation`;
+      const depCostName = isSingleObject ? `${basePath}.depreciationCost` : `${basePath}.${idx}.depreciationCost`;
+      const marketName = isSingleObject ? `${basePath}.marketValue` : `${basePath}.${idx}.marketValue`;
+
+      const curArea = watch(areaName);
+      const curUnit = watch(unitName);
+      const curBucc = watch(buccName);
+      const curDep = watch(depName);
+      const curBase = watch(baseName);
+      const curDepCost = watch(depCostName);
+      const curMarket = watch(marketName);
+
+      // fallback area: update when empty OR when totalFloorArea changed and current equals previous fallback
+      let desiredArea = curArea;
+      const prevAreaFallback = prevRef.current.totalFloorArea ? String(prevRef.current.totalFloorArea) : '';
+      if (totalFloorArea) {
+        if ((!curArea || String(curArea).trim() === '') || (areaChanged && (String(curArea || '') === prevAreaFallback))) {
+          desiredArea = String(totalFloorArea);
+        }
+      }
+      if (desiredArea !== curArea && desiredArea !== undefined) {
+        setValue(areaName, desiredArea);
+      }
+
+      // fallback unit: update when empty OR when description changed
+      let desiredUnit = curUnit;
+      const lookupUnit = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+      if (descChanged) {
+        if (lookupUnit !== undefined && lookupUnit !== null) {
+          desiredUnit = String(lookupUnit);
+        }
+      } else if ((!curUnit || String(curUnit).trim() === '')) {
+        if (lookupUnit !== undefined && lookupUnit !== null) desiredUnit = String(lookupUnit);
+      }
+      if (desiredUnit !== curUnit && desiredUnit !== undefined) {
+        setValue(unitName, desiredUnit);
+      }
+
+      // Persist BUCC
+      let desiredBucc = curBucc;
+      if (!curBucc || String(curBucc).trim() === '') desiredBucc = '100%';
+      else if (!String(curBucc).trim().endsWith('%')) desiredBucc = `${String(curBucc).trim()}%`;
+      if (desiredBucc !== curBucc && desiredBucc !== undefined) {
+        setValue(buccName, desiredBucc);
+      }
+
+      // Persist Depreciation
+      let desiredDep = curDep;
+      if (!curDep || String(curDep).trim() === '') desiredDep = '12%';
+      else if (!String(curDep).trim().endsWith('%')) desiredDep = `${String(curDep).trim()}%`;
+      if (desiredDep !== curDep && desiredDep !== undefined) {
+        setValue(depName, desiredDep);
+      }
+
+      // compute numerics
+      const numericArea = parseFloat(String(desiredArea ?? curArea ?? '')) || 0;
+      const numericUnit = parseFloat(String(desiredUnit ?? curUnit ?? '')) || 0;
+
+      const computedBase = numericArea * numericUnit;
+      const baseStr = String(Math.round((computedBase + Number.EPSILON) * 100) / 100);
+      if (baseStr !== String(curBase ?? '')) {
+        setValue(baseName, baseStr);
+      }
+
+      // depreciation percent
+      let depPercent = 12;
+      if (curDep !== undefined && curDep !== null && String(curDep).trim() !== '') {
+        const cleaned = String(curDep).trim().endsWith('%') ? String(curDep).trim().slice(0, -1) : String(curDep).trim();
+        const parsed = parseFloat(cleaned);
+        if (!Number.isNaN(parsed)) depPercent = parsed;
+      }
+
+      const computedDepCost = computedBase * (depPercent / 100);
+      const depCostStr = String(Math.round((computedDepCost + Number.EPSILON) * 100) / 100);
+      if (depCostStr !== String(curDepCost ?? '')) {
+        setValue(depCostName, depCostStr);
+      }
+
+      const computedMarket = computedBase - computedDepCost;
+      const marketStr = String(Math.round((computedMarket + Number.EPSILON) * 100) / 100);
+      if (marketStr !== String(curMarket ?? '')) {
+        setValue(marketName, marketStr);
+      }
+    });
+    // update prevRef for next run
+    prevRef.current = { totalFloorArea, structuralType, kindOfBuilding };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedPropertyAppraisal, totalFloorArea, structuralType, kindOfBuilding]);
+
   const totalBaseMarketValue = rows.reduce((sum: number, item: PropertyAppraisal) => {
     return sum + (parseFloat(String(item.baseMarketValue)) || 0);
   }, 0);
@@ -79,21 +205,61 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
     return sum + (parseFloat(String(item.marketValue)) || 0);
   }, 0);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Property Appraisal</Text>
+  // Focused effect: ensure area and unit_value update immediately when general_description changes
+  React.useEffect(() => {
+    try {
+      if (!rows || rows.length === 0) return;
+      rows.forEach((r, idx) => {
+        const areaName = isSingleObject ? `${basePath}.area` : `${basePath}.${idx}.area`;
+        const unitName = isSingleObject ? `${basePath}.unit_value` : `${basePath}.${idx}.unit_value`;
 
-      <View style={styles.tableCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.tableInner}>
+        const curArea = watch(areaName);
+        const curUnit = watch(unitName);
+
+        const prevAreaFallback = prevRef.current.totalFloorArea ? String(prevRef.current.totalFloorArea) : '';
+        if (totalFloorArea) {
+          if ((!curArea || String(curArea).trim() === '') || String(curArea || '') === prevAreaFallback) {
+            const desired = String(totalFloorArea);
+            if (desired !== curArea) {
+              setValue(areaName, desired);
+            }
+          }
+        }
+
+        const lookupUnit = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+        if (lookupUnit !== undefined && lookupUnit !== null) {
+          // if unit empty or description changed, set it
+          const descChanged = prevRef.current.structuralType !== structuralType || prevRef.current.kindOfBuilding !== kindOfBuilding;
+          if ((!curUnit || String(curUnit).trim() === '') || descChanged) {
+            const desiredUnit = String(lookupUnit);
+            if (desiredUnit !== curUnit) setValue(unitName, desiredUnit);
+          }
+        }
+      });
+    } catch (e) {
+      console.debug('[PropertyAppraisalForm] focused effect error', e);
+    }
+  }, [totalFloorArea, structuralType, kindOfBuilding, watchedPropertyAppraisal]);
+
+  return (
+    <View className="flex-1 bg-gray-100 p-4">
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold text-gray-800">PROPERTY APPRAISAL</Text>
+        <Icon name="assessment" size={24} color="#2c3e50" />
+      </View>
+
+      <View className="bg-white rounded-lg overflow-hidden mb-4 shadow-sm">
+        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+          <View className="min-w-[900px]">
             {/* Header */}
-            <View style={styles.headerRow}>
+            <View className="flex-row" style={{ backgroundColor: PRIMARY_COLOR }}>
               {headers.map((h) => (
                 <View
                   key={String(h.key)}
-                  style={[styles.headerCell, { minWidth: h.minWidth }]}
+                  className="py-3 px-2 items-center justify-center"
+                  style={{ minWidth: h.minWidth }}
                 >
-                  <Text style={styles.headerText}>{h.title}</Text>
+                  <Text className="text-white font-semibold text-center">{h.title}</Text>
                 </View>
               ))}
             </View>
@@ -101,12 +267,12 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
             {/* Body - rows controlled by react-hook-form */}
             <View>
               {rows.length === 0 ? (
-                <View style={styles.emptyRow}>
-                  <Text style={styles.emptyText}>No property appraisal data</Text>
+                <View className="py-6 items-center justify-center">
+                  <Text className="text-gray-500">No property appraisal data</Text>
                 </View>
               ) : (
                 rows.map((_row: PropertyAppraisal, rowIndex: number) => (
-                  <View key={rowIndex} style={styles.row}>
+                  <View key={rowIndex} className="flex-row">
                     {headers.map((h) => {
                       const controllerName = isSingleObject
                         ? `${basePath}.${String(h.key)}`
@@ -115,7 +281,8 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
                       return (
                         <View
                           key={`${rowIndex}-${String(h.key)}`}
-                          style={[styles.cell, { minWidth: h.minWidth }]}
+                          className="py-2 px-2 items-center justify-center flex-shrink-0"
+                          style={{ minWidth: h.minWidth }}
                         >
                           <Controller
                             control={control}
@@ -124,7 +291,22 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
                               const isAreaColumn = String(h.key) === 'area';
                               const isUnitColumn = String(h.key) === 'unit_value';
                               const isBaseColumn = String(h.key) === 'baseMarketValue';
-                              const fieldString = value !== undefined && value !== null ? String(value) : '';
+                              const isDepCostColumn = String(h.key) === 'depreciationCost';
+                              const isMarketColumn = String(h.key) === 'marketValue';
+                              // description may be an array of Description objects per your shape.
+                              let fieldString = '';
+                              if (Array.isArray(value)) {
+                                const first = value[0];
+                                if (first) {
+                                  const struct = first.structuralType ? String(first.structuralType) : '';
+                                  const kind = first.kindOfBuilding ? String(first.kindOfBuilding) : '';
+                                  fieldString = `${struct}${struct && kind ? ' ' : ''}${kind}`.trim();
+                                } else {
+                                  fieldString = '';
+                                }
+                              } else {
+                                fieldString = value !== undefined && value !== null ? String(value) : '';
+                              }
 
                               let displayValue = fieldString;
 
@@ -168,6 +350,8 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
 
                                 const computed = numericArea * numericUnit;
                                 displayValue = computed ? computed.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0';
+                                // If depreciation cost column is requested, compute below (we still set base here)
+                                // but depreciationCost handling occurs after base computation.
                               }
 
                               // BUCC (SMV) default/display: show 100% when empty; ensure a '%' suffix
@@ -179,10 +363,95 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
                                   displayValue = `${trimmed}%`;
                                 }
                               }
+
+                              // Depreciation default/display: show 12% when empty; ensure a '%' suffix
+                              if (String(h.key) === 'depreciation') {
+                                const trimmed = displayValue.trim();
+                                if (!trimmed) {
+                                  displayValue = '12%';
+                                } else if (!trimmed.endsWith('%')) {
+                                  displayValue = `${trimmed}%`;
+                                }
+                              }
+
+                              // Depreciation Cost: compute as baseMarketValue * depreciation%
+                              if (isDepCostColumn) {
+                                // Build names for area, unit and depreciation for this row
+                                const areaName = isSingleObject ? `${basePath}.area` : `${basePath}.${rowIndex}.area`;
+                                const unitName = isSingleObject ? `${basePath}.unit_value` : `${basePath}.${rowIndex}.unit_value`;
+                                const depName = isSingleObject ? `${basePath}.depreciation` : `${basePath}.${rowIndex}.depreciation`;
+
+                                const rawArea = watch(areaName);
+                                const rawUnit = watch(unitName);
+                                const rawDep = watch(depName);
+
+                                let numericArea = parseFloat(String(rawArea ?? '')) || 0;
+                                if ((!rawArea || String(rawArea).trim() === '') && totalFloorArea) {
+                                  numericArea = parseFloat(String(totalFloorArea)) || numericArea;
+                                }
+
+                                let numericUnit = parseFloat(String(rawUnit ?? '')) || 0;
+                                if ((!rawUnit || String(rawUnit).trim() === '')) {
+                                  const unitCost = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+                                  if (unitCost !== undefined && unitCost !== null) numericUnit = Number(unitCost);
+                                }
+
+                                // parse depreciation percent (e.g. '12%' or '12')
+                                let depPercent = 12;
+                                if (rawDep !== undefined && rawDep !== null) {
+                                  const depStr = String(rawDep).trim();
+                                  if (depStr !== '') {
+                                    const cleaned = depStr.endsWith('%') ? depStr.slice(0, -1) : depStr;
+                                    const parsed = parseFloat(cleaned);
+                                    if (!Number.isNaN(parsed)) depPercent = parsed;
+                                  }
+                                }
+
+                                const base = numericArea * numericUnit;
+                                const depCost = base * (depPercent / 100);
+                                displayValue = depCost ? depCost.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0';
+                              }
+
+                              // Market Value: baseMarketValue - depreciationCost
+                              if (isMarketColumn) {
+                                const areaName = isSingleObject ? `${basePath}.area` : `${basePath}.${rowIndex}.area`;
+                                const unitName = isSingleObject ? `${basePath}.unit_value` : `${basePath}.${rowIndex}.unit_value`;
+                                const depName = isSingleObject ? `${basePath}.depreciation` : `${basePath}.${rowIndex}.depreciation`;
+
+                                const rawArea = watch(areaName);
+                                const rawUnit = watch(unitName);
+                                const rawDep = watch(depName);
+
+                                let numericArea = parseFloat(String(rawArea ?? '')) || 0;
+                                if ((!rawArea || String(rawArea).trim() === '') && totalFloorArea) {
+                                  numericArea = parseFloat(String(totalFloorArea)) || numericArea;
+                                }
+
+                                let numericUnit = parseFloat(String(rawUnit ?? '')) || 0;
+                                if ((!rawUnit || String(rawUnit).trim() === '')) {
+                                  const unitCost = constructionCosts[structuralType as string]?.[kindOfBuilding as string];
+                                  if (unitCost !== undefined && unitCost !== null) numericUnit = Number(unitCost);
+                                }
+
+                                let depPercent = 12;
+                                if (rawDep !== undefined && rawDep !== null) {
+                                  const depStr = String(rawDep).trim();
+                                  if (depStr !== '') {
+                                    const cleaned = depStr.endsWith('%') ? depStr.slice(0, -1) : depStr;
+                                    const parsed = parseFloat(cleaned);
+                                    if (!Number.isNaN(parsed)) depPercent = parsed;
+                                  }
+                                }
+
+                                const base = numericArea * numericUnit;
+                                const depCost = base * (depPercent / 100);
+                                const market = base - depCost;
+                                displayValue = market ? market.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0';
+                              }
                               return (
                                 <TextInput
                                   value={displayValue || ''}
-                                  style={styles.readOnlyInput}
+                                  className="w-full p-1 text-sm text-gray-500 text-center bg-gray-50 border border-gray-200 rounded"
                                   editable={false}
                                   selectTextOnFocus={false}
                                 />
@@ -201,22 +470,22 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
       </View>
 
       {/* Summary Section */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Base Market Value:</Text>
-          <Text style={styles.summaryValue}>
+      <View className="bg-white p-4 rounded-lg border border-gray-200">
+        <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+          <Text className="text-sm font-semibold text-gray-700">Total Base Market Value:</Text>
+          <Text className="text-sm font-semibold text-green-600">
             ₱{totalBaseMarketValue.toLocaleString()}
           </Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Depreciation Cost:</Text>
-          <Text style={styles.summaryValue}>
+        <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+          <Text className="text-sm font-semibold text-gray-700">Total Depreciation Cost:</Text>
+          <Text className="text-sm font-semibold text-green-600">
             ₱{totalDepreciationCost.toLocaleString()}
           </Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Market Value:</Text>
-          <Text style={[styles.summaryValue, styles.totalValue]}>
+        <View className="flex-row justify-between items-center py-2">
+          <Text className="text-sm font-semibold text-gray-700">Total Market Value:</Text>
+          <Text className="text-base font-bold text-green-700">
             ₱{totalMarketValue.toLocaleString()}
           </Text>
         </View>
@@ -225,109 +494,4 @@ const PropertyAppraisalFormAdapted: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-    padding: 16
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-    color: '#111827'
-  },
-  tableCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 16
-  },
-  tableInner: {
-    minWidth: 900
-  },
-  headerRow: {
-    flexDirection: 'row',
-    backgroundColor: '#2563eb'
-  },
-  headerCell: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRightWidth: 1,
-    borderRightColor: '#1e40af',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  headerText: {
-    color: '#fff',
-    fontWeight: '600',
-    textAlign: 'center'
-  },
-  row: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb'
-  },
-  cell: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0
-  },
-  emptyRow: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  emptyText: {
-    color: '#6b7280',
-    fontSize: 14
-  },
-  readOnlyInput: {
-    width: '100%',
-    padding: 6,
-    fontSize: 13,
-    color: '#6b7280',
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 4
-  },
-  summaryContainer: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb'
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6'
-  },
-  summaryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151'
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#059669'
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#065f46'
-  }
-});
-
-export default PropertyAppraisalFormAdapted;
+export default PropertyAppraisalForm;

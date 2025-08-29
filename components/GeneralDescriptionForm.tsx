@@ -12,9 +12,11 @@ import {
   ScrollView
 } from 'react-native'
 import React, { useState } from 'react'
-import { useFormContext, Controller, useFieldArray } from 'react-hook-form'
+import { useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form'
 import * as ImagePicker from 'expo-image-picker'
 import { FloorArea } from '@/types';
+import { PRIMARY_COLOR } from '@/constants/colors';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -206,7 +208,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
   // Watch form values
   const structuralType = watch('general_description.structuralType');
   const kindOfBuilding = watch('general_description.kindOfBuilding');
-  const floorAreas = watch('general_description.floorAreas');
+  const floorAreas = useWatch({ control, name: 'general_description.floorAreas' });
   const floorPlanImages = watch('general_description.floorPlanImages');
 
   // Update available building types when structural type changes
@@ -223,13 +225,31 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     }
   }, [structuralType, kindOfBuilding, setValue]);
 
+  // When structural type and kind of building are selected, populate the
+  // derived unit cost into general_description.unit_value so other components
+  // (e.g., AdditionalItems) can read a single canonical field.
+  React.useEffect(() => {
+    if (structuralType && kindOfBuilding) {
+      const cost = constructionCosts[structuralType]?.[kindOfBuilding];
+      const costStr = cost != null ? String(cost) : '';
+      const current = watch('general_description.unit_value') || '';
+      if (current !== costStr) {
+        setValue('general_description.unit_value', costStr);
+      }
+    } else {
+      // Clear unit_value when selection is incomplete
+      const current = watch('general_description.unit_value') || '';
+      if (current !== '') setValue('general_description.unit_value', '');
+    }
+  }, [structuralType, kindOfBuilding, setValue, watch]);
+
   // Calculate total floor area
   React.useEffect(() => {
     const total = floorAreas?.reduce((sum: number, floor: FloorArea) => {
       const area = parseFloat(floor.area) || 0;
       return sum + area;
     }, 0) || 0;
-    setValue('general_description.totalFloorArea', total.toString());
+    setValue('general_description.totalFloorArea', total.toString(), { shouldDirty: true });
   }, [floorAreas, setValue]);
 
   // Helper function to get nested errors
@@ -456,7 +476,10 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <Text className="text-lg font-rubik-bold text-black-300 mb-4">General Description</Text>
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold text-gray-800">GENERAL DESCRIPTION</Text>
+        <Icon name="assessment" size={24} color="#2c3e50" />
+      </View>
 
       {/* Structural Type Dropdown */}
       <View className="mb-4">
@@ -518,7 +541,8 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           </Text>
           <TouchableOpacity
             onPress={addFloorArea}
-            className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center"
+            style={{ backgroundColor: PRIMARY_COLOR }}
+            className="rounded-full w-8 h-8 flex items-center justify-center"
           >
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
@@ -595,8 +619,8 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           </Text>
           <TouchableOpacity
             onPress={showImageOptions}
-            className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center"
-          >
+            className="rounded-full w-8 h-8 flex items-center justify-center"
+            style={{ backgroundColor: PRIMARY_COLOR }}>
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
         </View>

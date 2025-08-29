@@ -5,6 +5,8 @@ import {
 } from 'react-native'
 import React from 'react'
 import { useForm, Controller, useFormContext } from 'react-hook-form'
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { PRIMARY_COLOR } from '@/constants/colors';
 
 // Validation utility
 const validationRules = {
@@ -99,7 +101,10 @@ const LandReferenceForm: React.FC = () => {
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <Text className="text-lg font-rubik-bold text-black-300 mb-4">Land Reference</Text>
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold text-gray-800">LAND REFERENCE</Text>
+        <Icon name="assessment" size={24} color="#2c3e50" />
+      </View>
 
       {renderInput('land_reference.owner', 'Owner', 'Land owner name')}
 

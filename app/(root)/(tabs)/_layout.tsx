@@ -1,6 +1,5 @@
 import { Tabs } from "expo-router";
 import { Image, ImageSourcePropType, Text, View } from "react-native";
-
 import icons from "@/constants/icons";
 
 const TabIcon = ({
@@ -21,8 +20,8 @@ const TabIcon = ({
     />
     <Text
       className={`${focused
-          ? "text-primary-300 font-rubik-medium"
-          : "text-black-200 font-rubik"
+        ? "text-primary-300 font-rubik-medium"
+        : "text-black-200 font-rubik"
         } text-xs w-full text-center mt-1`}
     >
       {title}
@@ -36,6 +35,7 @@ const TabsLayout = () => {
       screenOptions={{
         tabBarShowLabel: false,
         tabBarStyle: {
+          paddingBottom: 20,
           backgroundColor: "white",
           borderTopColor: "#0061FF1A",
           borderTopWidth: 1,
@@ -67,19 +67,7 @@ const TabsLayout = () => {
         options={{
           title: "Assessment",
           tabBarIcon: ({ focused }) => (
-            <View className="flex-1 mt-3 flex flex-col items-center">
-              <View className={`${focused ? "bg-primary-300" : "bg-gray-400"} rounded-full w-6 h-6 flex items-center justify-center`}>
-                <Text className="text-white text-sm font-bold">+</Text>
-              </View>
-              <Text
-                className={`${focused
-                    ? "text-primary-300 font-rubik-medium"
-                    : "text-black-200 font-rubik"
-                  } text-xs w-full text-center mt-1`}
-              >
-                Assessment
-              </Text>
-            </View>
+            <TabIcon focused={focused} icon={icons.area} title="Assessment" />
           ),
         }}
       />
@@ -92,13 +80,8 @@ const TabsLayout = () => {
           ),
         }}
       />
-      <Tabs.Screen
-        name="assessment/add_assessment"
-        options={{
-          href: null, // This hides it from the tab bar
-          title: "Add Assessment",
-        }}
-      />
+
+      {/* no additional tab screens here — hidden screens live outside the tabs folder */}
     </Tabs>
   );
 };
