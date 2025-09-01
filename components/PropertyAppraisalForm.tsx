@@ -243,9 +243,9 @@ const PropertyAppraisalForm: React.FC = () => {
 
   return (
     <View className="flex-1 bg-gray-100 p-4">
-      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
-        <Text className="text-lg font-bold text-gray-800">PROPERTY APPRAISAL</Text>
-        <Icon name="assessment" size={24} color="#2c3e50" />
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-100 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold" style={{ color: PRIMARY_COLOR }}>PROPERTY APPRAISAL</Text>
+        <Icon name="assessment" size={24} style={{ color: PRIMARY_COLOR }} />
       </View>
 
       <View className="bg-white rounded-lg overflow-hidden mb-4 shadow-sm">

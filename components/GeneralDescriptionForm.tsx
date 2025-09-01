@@ -9,7 +9,8 @@ import {
   FlatList,
   Modal,
   Dimensions,
-  ScrollView
+  ScrollView,
+  Platform
 } from 'react-native'
 import React, { useState } from 'react'
 import { useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form'
@@ -311,6 +312,67 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     );
   };
 
+  // Date picker field (uses dynamic require of @react-native-community/datetimepicker)
+  let DateTimePicker: any = null;
+  const DatePickerField: React.FC<{ name: string; label: string; placeholder?: string }> = ({ name, label, placeholder }) => {
+    const error = getError(name);
+
+    return (
+      <View className="mb-4">
+        <Text className="text-base font-rubik-medium text-black-300 mb-2">
+          {label} <Text className="text-red-500">*</Text>
+        </Text>
+        <Controller
+          control={control}
+          name={name}
+          render={({ field: { onChange, value } }) => {
+            const [show, setShow] = useState(false);
+
+            const openPicker = () => {
+              try {
+                // @ts-ignore
+                DateTimePicker = require('@react-native-community/datetimepicker').default;
+                setShow(true);
+              } catch (e) {
+                Alert.alert('Install dependency', 'Please run: expo install @react-native-community/datetimepicker');
+              }
+            };
+
+            const onChangeNative = (event: any, selectedDate?: Date) => {
+              setShow(Platform.OS === 'ios');
+              if (selectedDate) {
+                // store ISO date string (date only)
+                const iso = selectedDate.toISOString();
+                onChange(iso);
+              }
+            };
+
+            const displayValue = value ? new Date(value).toLocaleDateString() : (placeholder || 'Select date');
+
+            return (
+              <>
+                <TouchableOpacity onPress={openPicker} className={`border rounded-lg px-4 py-3 bg-white ${error ? 'border-red-500' : 'border-gray-300'}`}>
+                  <Text style={{ color: value ? '#000' : '#9ca3af' }}>{displayValue}</Text>
+                </TouchableOpacity>
+                {show && DateTimePicker ? (
+                  <DateTimePicker
+                    value={value ? new Date(value) : new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+                    onChange={onChangeNative}
+                  />
+                ) : null}
+              </>
+            );
+          }}
+        />
+        {error && (
+          <Text className="text-red-500 text-sm font-rubik mt-1">{error.message as string}</Text>
+        )}
+      </View>
+    );
+  };
+
   const addFloorArea = () => {
     const newFloor: FloorArea = {
       id: Date.now().toString(),
@@ -341,7 +403,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
@@ -366,7 +428,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: true,
         quality: 1,
       });
@@ -476,9 +538,9 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
 
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
-      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
-        <Text className="text-lg font-bold text-gray-800">GENERAL DESCRIPTION</Text>
-        <Icon name="assessment" size={24} color="#2c3e50" />
+      <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-100 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+        <Text className="text-lg font-bold" style={{ color: PRIMARY_COLOR }}>GENERAL DESCRIPTION</Text>
+        <Icon name="assessment" size={24} style={{ color: PRIMARY_COLOR }} />
       </View>
 
       {/* Structural Type Dropdown */}
@@ -526,10 +588,10 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
 
       {renderInput('general_description.buildingPermitNo', 'Bldg. Permit No.', 'Building permit number')}
       {renderInput('general_description.condominiumCCT', 'Condominium Certificate of Title (CCT)', 'CCT number if applicable')}
-      {renderInput('general_description.completionCertificateDate', 'Certificate of Completion Issued On', 'MM/DD/YYYY')}
-      {renderInput('general_description.occupancyCertificateDate', 'Certificate of Occupancy Issued On', 'MM/DD/YYYY')}
-      {renderInput('general_description.dateConstructed', 'Date Constructed / Completed', 'MM/DD/YYYY')}
-      {renderInput('general_description.dateOccupied', 'Date Occupied', 'MM/DD/YYYY')}
+      <DatePickerField name={'general_description.completionCertificateDate'} label={'Certificate of Completion Issued On'} placeholder={'MM/DD/YYYY'} />
+      <DatePickerField name={'general_description.occupancyCertificateDate'} label={'Certificate of Occupancy Issued On'} placeholder={'MM/DD/YYYY'} />
+      <DatePickerField name={'general_description.dateConstructed'} label={'Date Constructed / Completed'} placeholder={'MM/DD/YYYY'} />
+      <DatePickerField name={'general_description.dateOccupied'} label={'Date Occupied'} placeholder={'MM/DD/YYYY'} />
       {renderInput('general_description.buildingAge', 'Building Age', 'Age in years', 'numeric')}
       {renderInput('general_description.numberOfStoreys', 'No of Storeys', 'Number of floors', 'numeric')}
 

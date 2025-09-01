@@ -189,9 +189,9 @@ const AdditionalItems: React.FC = () => {
 
     return (
         <ScrollView className="flex-1 p-4 bg-gray-50">
-            <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
-                <Text className="text-lg font-bold text-gray-800">ADDITIONAL ITEMS</Text>
-                <Icon name="assessment" size={24} color="#2c3e50" />
+            <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-100 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
+                <Text className="text-lg font-bold" style={{ color: PRIMARY_COLOR }}>ADDITIONAL ITEMS</Text>
+                <Icon name="assessment" size={24} style={{ color: PRIMARY_COLOR }} />
             </View>
             <Text className="text-base font-medium mb-2 text-gray-700">Select Additional Item:</Text>
             <View className="border border-gray-300 rounded-md mb-4 bg-white">
@@ -309,10 +309,7 @@ const AdditionalItems: React.FC = () => {
 
                         {/* Subtotal Row */}
                         <View className="flex-row bg-gray-50">
-                            <View className="py-2 px-2 min-w-[220px]" />
-                            <View className="py-2 px-2 min-w-[300px]" />
-                            <View className="py-2 px-2 min-w-[80px]" />
-                            <View className="py-2 px-2 min-w-[90px]" />
+                            <View className="py-2 px-2 min-w-[20px]" />
                             <View className="py-2 px-2 min-w-[140px] items-center justify-center">
                                 <Text className="text-gray-800 text-sm font-bold">
                                     Subtotal: {formatPHP(subTotal)}
