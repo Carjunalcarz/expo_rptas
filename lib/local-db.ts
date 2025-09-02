@@ -156,6 +156,31 @@ export async function syncPending(apiUrl: string) {
   }
 }
 
+/** Delete a local assessment by its local_id. Works with SQLite or AsyncStorage fallback. */
+export async function deleteAssessment(localId: number | string) {
+  const idNum = typeof localId === 'string' ? Number(localId) : localId;
+  if (db) {
+    const sql = `DELETE FROM assessments WHERE local_id = ?;`;
+    try {
+      await execSql(sql, [idNum]);
+    } catch (err) {
+      console.warn('deleteAssessment (sqlite) failed', err);
+      throw err;
+    }
+    return;
+  }
+
+  try {
+    const raw = await AsyncStorage.getItem(FALLBACK_KEY);
+    const list = raw ? JSON.parse(raw) as any[] : [];
+    const filtered = list.filter((r: any) => (r.local_id !== idNum && String(r.local_id) !== String(idNum)));
+    await AsyncStorage.setItem(FALLBACK_KEY, JSON.stringify(filtered));
+  } catch (err) {
+    console.warn('deleteAssessment (fallback) failed', err);
+    throw err;
+  }
+}
+
 export async function getAllAssessments() {
   if (db) {
     const sql = `SELECT * FROM assessments ORDER BY local_id DESC;`;
@@ -211,3 +236,4 @@ export async function getAssessmentById(localId: number) {
     synced: !!found.synced,
   };
 }
+

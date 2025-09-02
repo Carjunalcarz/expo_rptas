@@ -1,12 +1,20 @@
-import { View, Text, TextInput, Image, TouchableOpacity, Alert, ScrollView, Platform, Modal, Dimensions } from 'react-native';
+import { View, Text, TextInput, Image, TouchableOpacity, Alert, ScrollView, Platform, Modal, Dimensions, Linking, ActivityIndicator } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { useFormContext, Controller, useWatch } from 'react-hook-form';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { PRIMARY_COLOR } from '@/constants/colors';
 
 const BuildingLocationForm: React.FC = () => {
-  const { control, formState: { errors } } = useFormContext();
+  const { control, formState: { errors }, setValue, watch } = useFormContext();
+  const windowWidth = Dimensions.get('window').width;
+  const [isGalleryVisible, setIsGalleryVisible] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [manualModalVisible, setManualModalVisible] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLon, setManualLon] = useState('');
+  const [isGeneratingLocation, setIsGeneratingLocation] = useState(false);
 
   // Helper function to get nested errors
   const getError = (path: string) => {
@@ -69,12 +77,7 @@ const BuildingLocationForm: React.FC = () => {
     );
   };
 
-  // Image picker helpers (mirror GeneralDescriptionForm behavior)
-  const windowWidth = Dimensions.get('window').width;
-  const [isGalleryVisible, setIsGalleryVisible] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const { setValue, watch } = useFormContext() as any;
-
+  // Image picker helpers
   useEffect(() => {
     (async () => {
       if (Platform.OS !== 'web') {
@@ -107,7 +110,7 @@ const BuildingLocationForm: React.FC = () => {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
@@ -132,7 +135,7 @@ const BuildingLocationForm: React.FC = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 1,
       });
@@ -207,6 +210,139 @@ const BuildingLocationForm: React.FC = () => {
     );
   };
 
+  // Fixed location generation function
+  const generateLocation = async () => {
+    if (isGeneratingLocation) return;
+
+    setIsGeneratingLocation(true);
+
+    try {
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission required',
+          'Location permission is required to generate coordinates. You can enter them manually instead.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Enter Manually', onPress: () => setManualModalVisible(true) }
+          ]
+        );
+        return;
+      }
+
+      // Get current position with timeout
+      const locationPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 5000,
+      });
+
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Location request timed out')), 15000)
+      );
+
+      const position = await Promise.race([locationPromise, timeoutPromise]) as any;
+
+      if (position && position.coords) {
+        const { latitude, longitude } = position.coords;
+
+        // Set the values in the form
+        setValue('building_location.latitude', latitude.toString());
+        setValue('building_location.longitude', longitude.toString());
+
+        Alert.alert(
+          'Location Generated',
+          `Latitude: ${latitude.toFixed(6)}\nLongitude: ${longitude.toFixed(6)}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Location error:', error);
+
+      let errorMessage = 'Failed to get your location.';
+      if (error.message === 'Location request timed out') {
+        errorMessage = 'Location request timed out. Please try again or enter coordinates manually.';
+      } else if (error.code === 'CANCELLED') {
+        errorMessage = 'Location request was cancelled.';
+      }
+
+      Alert.alert(
+        'Location Error',
+        errorMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Enter Manually', onPress: () => setManualModalVisible(true) }
+        ]
+      );
+    } finally {
+      setIsGeneratingLocation(false);
+    }
+  };
+
+  const viewOnMap = () => {
+    const lat = watch('building_location.latitude');
+    const lon = watch('building_location.longitude');
+
+    if (!lat || !lon) {
+      Alert.alert('No Coordinates', 'Please generate or enter coordinates first.');
+      return;
+    }
+
+    // Format the URL based on platform
+    let url;
+    if (Platform.OS === 'ios') {
+      url = `http://maps.apple.com/?ll=${lat},${lon}&q=${encodeURIComponent('Building Location')}`;
+    } else {
+      url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    }
+
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Unable to open maps application.');
+    });
+  };
+
+  const saveManualCoords = () => {
+    // Validate coordinates
+    const lat = parseFloat(manualLat);
+    const lon = parseFloat(manualLon);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      Alert.alert('Invalid Input', 'Please enter valid numeric values for latitude and longitude.');
+      return;
+    }
+
+    if (lat < -90 || lat > 90) {
+      Alert.alert('Invalid Latitude', 'Latitude must be between -90 and 90 degrees.');
+      return;
+    }
+
+    if (lon < -180 || lon > 180) {
+      Alert.alert('Invalid Longitude', 'Longitude must be between -180 and 180 degrees.');
+      return;
+    }
+
+    // Set the values and close the modal
+    setValue('building_location.latitude', manualLat);
+    setValue('building_location.longitude', manualLon);
+    setManualModalVisible(false);
+
+    Alert.alert(
+      'Coordinates Saved',
+      `Latitude: ${manualLat}\nLongitude: ${manualLon}`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Pre-fill manual inputs with current values when modal opens
+  useEffect(() => {
+    if (manualModalVisible) {
+      setManualLat(watch('building_location.latitude') || '');
+      setManualLon(watch('building_location.longitude') || '');
+    }
+  }, [manualModalVisible]);
+
   return (
     <View className="bg-white rounded-xl p-5 mb-6 shadow-sm">
       <View className="flex-row items-center justify-between mb-4 p-3 bg-blue-100 rounded-lg border-l-4" style={{ borderLeftColor: PRIMARY_COLOR }}>
@@ -218,7 +354,123 @@ const BuildingLocationForm: React.FC = () => {
       {renderInput('building_location.barangay', 'Barangay', 'Barangay name')}
       {renderInput('building_location.municipality', 'Municipality', 'Municipality/City name')}
       {renderInput('building_location.province', 'Province', 'Province name')}
+
+      <View className="mb-4">
+        <Text className="text-base font-rubik-medium text-black-300 mb-2">Coordinates</Text>
+        <View className="flex-row">
+          <View className="flex-1 mr-2">
+            <Controller
+              control={control}
+              name="building_location.latitude"
+              render={({ field: { value } }) => (
+                <TextInput
+                  value={value}
+                  placeholder="Latitude"
+                  editable={false}
+                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12"
+                />
+              )}
+            />
+          </View>
+          <View className="flex-1 ml-2">
+            <Controller
+              control={control}
+              name="building_location.longitude"
+              render={({ field: { value } }) => (
+                <TextInput
+                  value={value}
+                  placeholder="Longitude"
+                  editable={false}
+                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12"
+                />
+              )}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View className="flex-row mb-4">
+        <TouchableOpacity
+          onPress={generateLocation}
+          className="flex-1 bg-green-600 py-3 rounded-lg mr-2 items-center flex-row justify-center"
+          disabled={isGeneratingLocation}
+        >
+          {isGeneratingLocation ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Icon name="my-location" size={18} color="#fff" style={{ marginRight: 8 }} />
+              <Text className="text-white font-rubik-bold">Generate Location</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={viewOnMap}
+          className="flex-1 bg-blue-600 py-3 rounded-lg ml-2 items-center flex-row justify-center"
+        >
+          <Icon name="map" size={18} color="#fff" style={{ marginRight: 8 }} />
+          <Text className="text-white font-rubik-bold">View on Map</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        onPress={() => setManualModalVisible(true)}
+        className="bg-gray-200 py-3 rounded-lg mb-4 items-center flex-row justify-center"
+      >
+        <Icon name="edit" size={18} color="#333" style={{ marginRight: 8 }} />
+        <Text className="text-gray-800 font-rubik-bold">Enter Coordinates Manually</Text>
+      </TouchableOpacity>
+
       {renderImageUploader()}
+
+      <Modal visible={manualModalVisible} animationType="slide" transparent={true}>
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-white rounded-xl p-6 w-5/6">
+            <Text className="text-xl font-rubik-bold text-gray-800 mb-4">Enter Coordinates Manually</Text>
+
+            <View className="mb-4">
+              <Text className="text-base font-rubik-medium text-gray-700 mb-1">Latitude</Text>
+              <TextInput
+                value={manualLat}
+                onChangeText={setManualLat}
+                placeholder="e.g., 14.5995"
+                keyboardType="numeric"
+                className="border border-gray-300 rounded-lg px-4 py-3 text-base"
+              />
+              <Text className="text-xs text-gray-500 mt-1">Between -90 and 90</Text>
+            </View>
+
+            <View className="mb-6">
+              <Text className="text-base font-rubik-medium text-gray-700 mb-1">Longitude</Text>
+              <TextInput
+                value={manualLon}
+                onChangeText={setManualLon}
+                placeholder="e.g., 120.9842"
+                keyboardType="numeric"
+                className="border border-gray-300 rounded-lg px-4 py-3 text-base"
+              />
+              <Text className="text-xs text-gray-500 mt-1">Between -180 and 180</Text>
+            </View>
+
+            <View className="flex-row justify-end">
+              <TouchableOpacity
+                onPress={() => setManualModalVisible(false)}
+                className="px-4 py-2 mr-2"
+              >
+                <Text className="text-gray-600 font-rubik-medium">Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={saveManualCoords}
+                className="bg-blue-500 px-4 py-2 rounded-lg"
+              >
+                <Text className="text-white font-rubik-bold">Save Coordinates</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
