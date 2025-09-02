@@ -2,9 +2,10 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, TouchableOpacity, Alert, View, Modal, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { syncPending } from '../../../lib/local-db';
+import { syncPending, saveAssessment } from '../../../lib/local-db';
 import { SYNC_API_URL } from '../../../constants/sync';
 import { useEffect } from 'react';
+import { router } from 'expo-router';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useForm, FormProvider } from "react-hook-form";
 import OwnerDetailsForm from "../../../components/OwnerDetailsForm";
@@ -61,14 +62,19 @@ const AddAssessment: React.FC = () => {
     const cancelPreview = () => { setPreviewVisible(false); };
     const confirmSave = () => { setPreviewVisible(false); handleSubmit(onSubmit)(); };
     const onSubmit = async (data: AssessmentFormData) => {
-        try {
-            const entry = { createdAt: new Date().toISOString(), data };
-            await AsyncStorage.setItem('last_assessment', JSON.stringify(entry));
-            Alert.alert('Assessment Saved', 'Saved to device (last_assessment)');
-        } catch (err: any) {
-            console.error('Failed to save assessment', err);
-            Alert.alert('Save failed', err?.message || 'An error occurred while saving');
-        }
+            try {
+                const entry = { createdAt: new Date().toISOString(), data };
+                // Persist via local DB (SQLite if available, otherwise AsyncStorage fallback)
+                await saveAssessment(entry);
+                // Also keep a last_assessment for quick preview/edit continuity
+                await AsyncStorage.setItem('last_assessment', JSON.stringify(entry));
+                Alert.alert('Assessment Saved', 'Saved to device');
+                // Go back to the previous screen (Assessments list) so it can refresh
+                try { router.back(); } catch (e) { /* ignore navigation errors */ }
+            } catch (err: any) {
+                console.error('Failed to save assessment', err);
+                Alert.alert('Save failed', err?.message || 'An error occurred while saving');
+            }
     };
     const fillDummyData = () => reset(dummy_data());
     const clearForm = () => reset(DEFAULT_VALUES);
