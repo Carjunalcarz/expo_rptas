@@ -65,7 +65,7 @@ const Profile = () => {
       // Don't navigate if already on profile
       return;
     }
-    router.push(route as any);
+    try { const r = require('expo-router'); r?.router?.push(route as any); } catch (e) { console.warn('router.push failed', e); }
   };
 
   return (

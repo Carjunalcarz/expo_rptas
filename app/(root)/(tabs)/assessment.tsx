@@ -3,7 +3,6 @@ import Icon from 'react-native-vector-icons/MaterialIcons'
 import React, { useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import images from '@/constants/images'
-import GalleryModal from '@/components/GalleryModal'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useForm } from 'react-hook-form';
@@ -17,9 +16,6 @@ const Assessment = () => {
 
   const [list, setList] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [galleryVisible, setGalleryVisible] = useState(false);
-  const [galleryImages, setGalleryImages] = useState<any[]>([]);
-  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const loadRows = async () => {
     const rows = await getAllAssessments();
@@ -53,22 +49,8 @@ const Assessment = () => {
             text: 'Delete',
             style: 'destructive',
             onPress: async () => {
-              try {
-                // If the localId is a non-numeric string it likely came from the
-                // temporary 'last_assessment' entry saved by the Add form.
-                // Remove that separate AsyncStorage key. Otherwise delete from
-                // the persistent fallback list / SQLite table.
-                if (typeof localId === 'string' && isNaN(Number(localId))) {
-                  await AsyncStorage.removeItem('last_assessment');
-                } else {
-                  // allow numeric strings as well
-                  const id = typeof localId === 'string' ? Number(localId) : localId;
-                  await deleteAssessment(id as number);
-                }
-                await loadRows();
-              } catch (err) {
-                console.warn('delete error', err);
-              }
+              await deleteAssessment(localId);
+              await loadRows();
             }
           }
         ]
@@ -125,13 +107,11 @@ const Assessment = () => {
                   className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-gray-100"
                 >
                   <View className="flex flex-row items-center">
-                    <TouchableOpacity onPress={() => { setGalleryImages([src].filter(Boolean)); setGalleryIndex(0); setGalleryVisible(true); }}>
-                      <Image
-                        source={imageSource}
-                        className="w-16 h-16 rounded-lg mr-4"
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
+                    <Image
+                      source={imageSource}
+                      className="w-16 h-16 rounded-lg mr-4"
+                      resizeMode="cover"
+                    />
                     <View className="flex-1">
                       <Text className="text-lg font-rubik-medium text-gray-800" numberOfLines={1}>
                         {item.data?.owner_details?.owner || `Assessment ${item.local_id}`}
@@ -204,7 +184,6 @@ const Assessment = () => {
             </View>
           </View>
         )}
-        <GalleryModal visible={galleryVisible} images={galleryImages} initialIndex={galleryIndex} onRequestClose={() => setGalleryVisible(false)} />
       </View>
     </SafeAreaView>
   )

@@ -72,7 +72,7 @@ const Auth = () => {
 
             {/* Local Sign-in */}
             <TouchableOpacity
-              onPress={() => router.push("/local_sign-in")}
+              onPress={() => { try { const r = require('expo-router'); r?.router?.push("/local_sign-in"); } catch (e) { console.warn('router.push failed', e); } }}
               className="bg-primary-300 shadow-md shadow-zinc-300 rounded-full w-full py-4 mt-5"
               activeOpacity={0.8}
             >

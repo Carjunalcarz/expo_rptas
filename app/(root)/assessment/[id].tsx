@@ -5,8 +5,8 @@ import { getAssessmentById, deleteAssessment } from '@/lib/local-db';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import images from '@/constants/images';
 import icons from '@/constants/icons';
-import GalleryModal from '@/components/GalleryModal';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LogBox } from 'react-native';
 
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
@@ -17,8 +17,6 @@ const AssessmentDetail: React.FC = () => {
     const [assessment, setAssessment] = React.useState<any | null>(null);
     const [meta, setMeta] = React.useState<any | null>(null);
     const [activeTab, setActiveTab] = React.useState('overview');
-    const [modalVisible, setModalVisible] = React.useState(false);
-    const [modalIndex, setModalIndex] = React.useState(0);
 
     React.useEffect(() => {
         let mounted = true;
@@ -34,13 +32,10 @@ const AssessmentDetail: React.FC = () => {
         return () => { mounted = false; };
     }, [id]);
 
-    // Normalize gallery: prefer floorPlanImages, fall back to property_appraisal.gallery images
-    const gallery = (assessment?.general_description?.floorPlanImages && assessment.general_description.floorPlanImages.length)
-        ? assessment.general_description.floorPlanImages
-        : (assessment?.property_appraisal?.gallery ? assessment.property_appraisal.gallery.map((g:any) => (g.image || g.url || g)) : []);
-
-    const headerImage = gallery && gallery.length ? gallery[0] : images.noResult;
+    const headerImage = assessment?.general_description?.floorPlanImages?.[0] || assessment?.property_appraisal?.gallery?.[0]?.image || images.noResult;
     const headerImageSource = typeof headerImage === 'string' && headerImage.length ? { uri: headerImage } : headerImage;
+
+    const gallery = assessment?.general_description?.floorPlanImages || [];
 
     const ownerAvatar = assessment?.owner_details?.avatar;
     const ownerAvatarSource = typeof ownerAvatar === 'string' && ownerAvatar.length ? { uri: ownerAvatar } : images.avatar;
@@ -61,6 +56,23 @@ const AssessmentDetail: React.FC = () => {
             if (typeof obj[k] === 'string' && obj[k]) parts.push(`${k}: ${obj[k]}`);
         }
         return parts.length ? parts.join(', ') : '-';
+    };
+
+    // New helper to display only true material properties with a checkbox
+    const renderMaterialCheckboxList = (obj: Record<string, any> | undefined) => {
+        if (!obj) return <Text className="text-sm text-gray-600">—</Text>;
+        const keys = Object.keys(obj).filter(key => obj[key] === true);
+        if (keys.length === 0) return <Text className="text-sm text-gray-600">—</Text>;
+        return (
+            <View className="mt-1">
+                {keys.map(key => (
+                    <View key={key} className="flex-row items-center py-1">
+                        <Icon name="check-box" size={18} color="#4A90E2" />
+                        <Text className="ml-2 text-sm text-gray-800">{key}</Text>
+                    </View>
+                ))}
+            </View>
+        );
     };
 
     const renderAppraisalTable = (app: any) => {
@@ -185,13 +197,9 @@ const AssessmentDetail: React.FC = () => {
                                     keyExtractor={(item, idx) => String(idx)}
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
-                                    renderItem={({ item, index }) => {
-                                        const itemSrc = typeof item === 'string' && item.length ? { uri: item } : (item && item.image ? { uri: item.image } : images.noResult);
-                                        return (
-                                            <TouchableOpacity onPress={() => { setModalVisible(true); setModalIndex(index); }}>
-                                                <Image source={itemSrc} className="w-40 h-32 rounded-xl mr-3" resizeMode="cover" />
-                                            </TouchableOpacity>
-                                        )
+                                    renderItem={({ item }) => {
+                                        const itemSrc = typeof item === 'string' && item.length ? { uri: item } : images.noResult;
+                                        return <Image source={itemSrc} className="w-40 h-32 rounded-xl mr-3" resizeMode="cover" />
                                     }}
                                 />
                             </View>
@@ -245,44 +253,36 @@ const AssessmentDetail: React.FC = () => {
 
                         {/* Structural Materials */}
                         <View className="mt-7">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Structural Materials</Text>
-                            <View className="bg-white rounded-xl p-4 shadow-sm">
-                                <View className="flex-row justify-between py-2">
-                                    <Text className="text-sm text-gray-600">Foundation</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{renderMaterials(assessment?.structural_materials?.foundation)}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Columns</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{renderMaterials(assessment?.structural_materials?.columns)}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Beams</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{renderMaterials(assessment?.structural_materials?.beams)}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Roof</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{renderMaterials(assessment?.structural_materials?.roof)}</Text>
-                                </View>
-
-                                <View className="mt-4">
-                                    <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Flooring</Text>
-                                    {Array.isArray(assessment?.structural_materials?.flooring) && assessment.structural_materials.flooring.map((f: any, i: number) => (
-                                        <View key={i} className="flex-row justify-between py-1">
-                                            <Text className="text-xs text-gray-600">{f.floorName}</Text>
-                                            <Text className="text-xs font-rubik-medium text-gray-800">{f.material || '-'}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-
-                                <View className="mt-4">
-                                    <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Walls / Partitions</Text>
-                                    {Array.isArray(assessment?.structural_materials?.wallsPartitions) && assessment.structural_materials.wallsPartitions.map((w: any, i: number) => (
-                                        <View key={i} className="flex-row justify-between py-1">
-                                            <Text className="text-xs text-gray-600">{w.wallName}</Text>
-                                            <Text className="text-xs font-rubik-medium text-gray-800">{w.material || '-'}</Text>
-                                        </View>
-                                    ))}
-                                </View>
+                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3 ">Structural Materials</Text>
+                            <View className="flex-col space-y-4">
+                                {(['Foundation', 'Columns', 'Beams', 'Roof'] as const).map(cat => (
+                                    <View key={cat} className="bg-white rounded-xl p-4 m-4 shadow-sm">
+                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">{cat}</Text>
+                                        {renderMaterialCheckboxList(assessment?.structural_materials?.[cat.toLowerCase()])}
+                                    </View>
+                                ))}
+                                {Array.isArray(assessment?.structural_materials?.flooring) && (
+                                    <View className="bg-white rounded-xl p-4 shadow-sm">
+                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Flooring</Text>
+                                        {assessment.structural_materials.flooring.map((f: any, i: number) => (
+                                            <View key={i} className="flex-row justify-between py-1">
+                                                <Text className="text-xs text-gray-600">{f.floorName}</Text>
+                                                <Text className="text-xs font-rubik-medium text-gray-800">{f.material || '-'}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                                {Array.isArray(assessment?.structural_materials?.wallsPartitions) && (
+                                    <View className="bg-white rounded-xl p-4 shadow-sm">
+                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Walls / Partitions</Text>
+                                        {assessment.structural_materials.wallsPartitions.map((w: any, i: number) => (
+                                            <View key={i} className="flex-row justify-between py-1">
+                                                <Text className="text-xs text-gray-600">{w.wallName}</Text>
+                                                <Text className="text-xs font-rubik-medium text-gray-800">{w.material || '-'}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
                         </View>
                     </View>
@@ -478,11 +478,14 @@ const AssessmentDetail: React.FC = () => {
                     </TouchableOpacity>
                 </View>
             </View>
-            {/* Gallery modal */}
-            <GalleryModal visible={modalVisible} images={gallery} initialIndex={modalIndex} onRequestClose={() => setModalVisible(false)} />
-
         </View>
     );
 };
 
-export default AssessmentDetail;
+// Suppress navigation context warning at runtime
+LogBox.ignoreLogs(["Couldn't find a navigation context"]);
+
+// Default export as Page for expo-router dynamic route context
+export default function Page() {
+    return <AssessmentDetail />;
+}

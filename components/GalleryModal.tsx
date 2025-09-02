@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, FlatList, Image, TouchableOpacity, Text, Dimensions, StyleSheet, StatusBar } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import images from '@/constants/images';
+import { normalizeImageValue, toImageSource } from '@/lib/image';
 
 const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
 
@@ -33,29 +34,15 @@ export default function GalleryModal({ visible, images, initialIndex = 0, onRequ
     }, [visible, initialIndex]);
 
     const normalize = (it: ImageSource) => {
-        if (!it) return undefined;
-        // handle require(...) which is a numeric id
-        if (typeof it === 'number') return it;
-        if (typeof it === 'string') return { uri: it };
-        if (it && typeof it === 'object') {
-            // common shapes
-            if (it.uri) return { uri: it.uri };
-            if (it.url) return { uri: it.url };
-            if (it.image) {
-                if (typeof it.image === 'string') return { uri: it.image };
-                if (it.image.uri) return { uri: it.image.uri };
-                if (it.image.url) return { uri: it.image.url };
-            }
-            if (it.file && (it.file.url || it.file.uri)) return { uri: it.file.url || it.file.uri };
-            if (it.path) return { uri: it.path };
-            if (it.src) return { uri: it.src };
-            if (it.data && typeof it.data === 'string' && it.data.startsWith('data:')) return { uri: it.data };
-        }
+        const val = normalizeImageValue(it);
+        if (val === null) return undefined;
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return { uri: val };
         return undefined;
     };
 
     const renderItem = ({ item }: { item: ImageSource }) => {
-        const src = normalize(item) || (images as any).noResult;
+        const src = toImageSource(item);
         return (
             <View style={{ width: windowWidth, height: windowHeight, justifyContent: 'center', alignItems: 'center' }}>
                 <Image source={src} style={styles.image} resizeMode="contain" />
@@ -87,6 +74,10 @@ export default function GalleryModal({ visible, images, initialIndex = 0, onRequ
                     </TouchableOpacity>
                     <View style={styles.counter}><Text style={styles.counterText}>{index + 1} / {Math.max(1, images.length)}</Text></View>
                 </View>
+                {/* Small hint and indicators */}
+                <View style={styles.bottomHint} pointerEvents="box-none">
+                    <Text style={styles.hintText}>Swipe to browse • Pinch to zoom</Text>
+                </View>
             </View>
         </Modal>
     );
@@ -99,4 +90,6 @@ const styles = StyleSheet.create({
     closeBtn: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 24 },
     counter: { alignSelf: 'center' },
     counterText: { color: '#fff', fontWeight: '600' },
+    bottomHint: { position: 'absolute', bottom: 28, left: 0, right: 0, alignItems: 'center' },
+    hintText: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
 });

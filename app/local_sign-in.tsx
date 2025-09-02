@@ -4,7 +4,7 @@ import { PRIMARY_COLOR } from '../constants/colors';
 import { useForm, Controller } from "react-hook-form";
 import { ArrowLeft } from "lucide-react-native";
 import { login } from "@/lib/auth";
-import { useRouter } from "expo-router";
+// avoid direct router hook usage during render; call router lazily when needed
 import { useGlobalContext } from "@/lib/global-provider";
 
 type LoginFormInputs = {
@@ -13,7 +13,7 @@ type LoginFormInputs = {
 };
 
 const LoginForm: React.FC = () => {
-    const router = useRouter();
+    // router will be required lazily in handlers to avoid missing navigation context
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const {
@@ -43,9 +43,9 @@ const LoginForm: React.FC = () => {
                 // Refresh the global context
                 await refetch();
 
-                // Navigate to home
+                // Navigate to home (guarded)
                 console.log("🏠 Redirecting to home...");
-                router.replace("/");
+                try { const r = require('expo-router'); r?.router?.replace('/'); } catch (e) { console.warn('router.replace failed', e); }
 
             } else {
                 Alert.alert("Login Failed", "Invalid email or password. Please try again.");
@@ -64,7 +64,7 @@ const LoginForm: React.FC = () => {
     };
 
     const handleGoBack = () => {
-        router.back();
+        try { const r = require('expo-router'); r?.router?.back(); } catch (e) { console.warn('router.back failed', e); }
     };
 
     // Show loading screen while checking auth
@@ -80,7 +80,7 @@ const LoginForm: React.FC = () => {
     // If already logged in, redirect
     if (isLogged) {
         console.log("✅ User already logged in, redirecting...");
-        router.replace("/");
+        try { const r = require('expo-router'); r?.router?.replace('/'); } catch (e) { console.warn('router.replace failed', e); }
         return null;
     }
 

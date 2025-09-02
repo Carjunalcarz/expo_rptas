@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { LogBox } from 'react-native';
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
@@ -6,6 +7,8 @@ import * as SplashScreen from "expo-splash-screen";
 import "./global.css";
 import GlobalProvider from "@/lib/global-provider";
 
+// Suppress navigation context warnings globally
+LogBox.ignoreLogs(["Couldn't find a navigation context"]);
 export default function RootLayout() {
 
   const [fontsLoaded] = useFonts({
@@ -18,6 +21,9 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Suppress noisy navigation-context warnings temporarily while we
+    // harden screens against race conditions. We'll still fix the root
+    // cause, but hide the duplicate log to keep the console usable.
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
