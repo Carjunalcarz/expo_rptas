@@ -49,8 +49,22 @@ const Assessment = () => {
             text: 'Delete',
             style: 'destructive',
             onPress: async () => {
-              await deleteAssessment(localId);
-              await loadRows();
+              try {
+                // If the localId is a non-numeric string it likely came from the
+                // temporary 'last_assessment' entry saved by the Add form.
+                // Remove that separate AsyncStorage key. Otherwise delete from
+                // the persistent fallback list / SQLite table.
+                if (typeof localId === 'string' && isNaN(Number(localId))) {
+                  await AsyncStorage.removeItem('last_assessment');
+                } else {
+                  // allow numeric strings as well
+                  const id = typeof localId === 'string' ? Number(localId) : localId;
+                  await deleteAssessment(id as number);
+                }
+                await loadRows();
+              } catch (err) {
+                console.warn('delete error', err);
+              }
             }
           }
         ]
