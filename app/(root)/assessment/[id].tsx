@@ -5,6 +5,7 @@ import { getAssessmentById, deleteAssessment } from '@/lib/local-db';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import images from '@/constants/images';
 import icons from '@/constants/icons';
+import GalleryModal from '@/components/GalleryModal';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const windowHeight = Dimensions.get('window').height;
@@ -16,6 +17,8 @@ const AssessmentDetail: React.FC = () => {
     const [assessment, setAssessment] = React.useState<any | null>(null);
     const [meta, setMeta] = React.useState<any | null>(null);
     const [activeTab, setActiveTab] = React.useState('overview');
+    const [modalVisible, setModalVisible] = React.useState(false);
+    const [modalIndex, setModalIndex] = React.useState(0);
 
     React.useEffect(() => {
         let mounted = true;
@@ -31,10 +34,13 @@ const AssessmentDetail: React.FC = () => {
         return () => { mounted = false; };
     }, [id]);
 
-    const headerImage = assessment?.general_description?.floorPlanImages?.[0] || assessment?.property_appraisal?.gallery?.[0]?.image || images.noResult;
-    const headerImageSource = typeof headerImage === 'string' && headerImage.length ? { uri: headerImage } : headerImage;
+    // Normalize gallery: prefer floorPlanImages, fall back to property_appraisal.gallery images
+    const gallery = (assessment?.general_description?.floorPlanImages && assessment.general_description.floorPlanImages.length)
+        ? assessment.general_description.floorPlanImages
+        : (assessment?.property_appraisal?.gallery ? assessment.property_appraisal.gallery.map((g:any) => (g.image || g.url || g)) : []);
 
-    const gallery = assessment?.general_description?.floorPlanImages || [];
+    const headerImage = gallery && gallery.length ? gallery[0] : images.noResult;
+    const headerImageSource = typeof headerImage === 'string' && headerImage.length ? { uri: headerImage } : headerImage;
 
     const ownerAvatar = assessment?.owner_details?.avatar;
     const ownerAvatarSource = typeof ownerAvatar === 'string' && ownerAvatar.length ? { uri: ownerAvatar } : images.avatar;
@@ -179,9 +185,13 @@ const AssessmentDetail: React.FC = () => {
                                     keyExtractor={(item, idx) => String(idx)}
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
-                                    renderItem={({ item }) => {
-                                        const itemSrc = typeof item === 'string' && item.length ? { uri: item } : images.noResult;
-                                        return <Image source={itemSrc} className="w-40 h-32 rounded-xl mr-3" resizeMode="cover" />
+                                    renderItem={({ item, index }) => {
+                                        const itemSrc = typeof item === 'string' && item.length ? { uri: item } : (item && item.image ? { uri: item.image } : images.noResult);
+                                        return (
+                                            <TouchableOpacity onPress={() => { setModalVisible(true); setModalIndex(index); }}>
+                                                <Image source={itemSrc} className="w-40 h-32 rounded-xl mr-3" resizeMode="cover" />
+                                            </TouchableOpacity>
+                                        )
                                     }}
                                 />
                             </View>
@@ -468,6 +478,9 @@ const AssessmentDetail: React.FC = () => {
                     </TouchableOpacity>
                 </View>
             </View>
+            {/* Gallery modal */}
+            <GalleryModal visible={modalVisible} images={gallery} initialIndex={modalIndex} onRequestClose={() => setModalVisible(false)} />
+
         </View>
     );
 };

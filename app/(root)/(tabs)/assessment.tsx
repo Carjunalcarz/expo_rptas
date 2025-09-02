@@ -3,6 +3,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons'
 import React, { useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import images from '@/constants/images'
+import GalleryModal from '@/components/GalleryModal'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useForm } from 'react-hook-form';
@@ -16,6 +17,9 @@ const Assessment = () => {
 
   const [list, setList] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<any[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const loadRows = async () => {
     const rows = await getAllAssessments();
@@ -121,11 +125,13 @@ const Assessment = () => {
                   className="bg-white rounded-xl p-4 mb-3 shadow-sm border border-gray-100"
                 >
                   <View className="flex flex-row items-center">
-                    <Image
-                      source={imageSource}
-                      className="w-16 h-16 rounded-lg mr-4"
-                      resizeMode="cover"
-                    />
+                    <TouchableOpacity onPress={() => { setGalleryImages([src].filter(Boolean)); setGalleryIndex(0); setGalleryVisible(true); }}>
+                      <Image
+                        source={imageSource}
+                        className="w-16 h-16 rounded-lg mr-4"
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
                     <View className="flex-1">
                       <Text className="text-lg font-rubik-medium text-gray-800" numberOfLines={1}>
                         {item.data?.owner_details?.owner || `Assessment ${item.local_id}`}
@@ -198,6 +204,7 @@ const Assessment = () => {
             </View>
           </View>
         )}
+        <GalleryModal visible={galleryVisible} images={galleryImages} initialIndex={galleryIndex} onRequestClose={() => setGalleryVisible(false)} />
       </View>
     </SafeAreaView>
   )
