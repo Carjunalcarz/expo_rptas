@@ -316,6 +316,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
   let DateTimePicker: any = null;
   const DatePickerField: React.FC<{ name: string; label: string; placeholder?: string }> = ({ name, label, placeholder }) => {
     const error = getError(name);
+    const [show, setShow] = useState(false);
 
     return (
       <View className="mb-4">
@@ -326,8 +327,6 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           control={control}
           name={name}
           render={({ field: { onChange, value } }) => {
-            const [show, setShow] = useState(false);
-
             const openPicker = () => {
               try {
                 // @ts-ignore
@@ -473,29 +472,33 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     </View>
   );
 
-  const renderDropdown = (
-    name: string,
-    options: string[],
-    placeholder: string = "Select option",
-    rules?: any
-  ) => {
+  // Dropdown field as a proper React component to satisfy Hooks rules
+  const DropdownField: React.FC<{
+    name: string;
+    options: string[];
+    placeholder?: string;
+    rules?: any;
+  }> = ({ name, options, placeholder = 'Select option', rules }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const { control: formControl, formState } = useFormContext();
+
+    const getNested = (obj: any, path: string) =>
+      path.split('.').reduce((acc: any, key: string) => (acc ? acc[key] : undefined), obj);
+
+    const fieldError = getNested(formState.errors, name);
 
     return (
       <Controller
-        control={control}
+        control={formControl}
         name={name}
         rules={rules}
         render={({ field: { onChange, value } }) => (
           <View className="relative">
             <TouchableOpacity
               onPress={() => setIsOpen(!isOpen)}
-              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${getError(name) ? 'border-red-500' : 'border-gray-300'
-                }`}
+              className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${fieldError ? 'border-red-500' : 'border-gray-300'}`}
             >
-              <Text
-                className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}
-              >
+              <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
                 {value || placeholder}
               </Text>
 
@@ -548,12 +551,12 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
         <Text className="text-base font-rubik-medium text-black-300 mb-2">
           Structural Type <Text className="text-red-500">*</Text>
         </Text>
-        {renderDropdown(
-          'general_description.structuralType',
-          Object.keys(constructionCosts),
-          "Select structural type",
-          { required: 'Structural Type is required' }
-        )}
+        <DropdownField
+          name={'general_description.structuralType'}
+          options={Object.keys(constructionCosts)}
+          placeholder="Select structural type"
+          rules={{ required: 'Structural Type is required' }}
+        />
         {getError('general_description.structuralType') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
             {getError('general_description.structuralType')?.message as string}
@@ -566,12 +569,12 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
         <Text className="text-base font-rubik-medium text-black-300 mb-2">
           Kind of Building <Text className="text-red-500">*</Text>
         </Text>
-        {renderDropdown(
-          'general_description.kindOfBuilding',
-          availableBuildingTypes,
-          structuralType ? "Select kind of building" : "Select structural type first",
-          { required: 'Kind of Building is required' }
-        )}
+        <DropdownField
+          name={'general_description.kindOfBuilding'}
+          options={availableBuildingTypes}
+          placeholder={structuralType ? 'Select kind of building' : 'Select structural type first'}
+          rules={{ required: 'Kind of Building is required' }}
+        />
         {getError('general_description.kindOfBuilding') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
             {getError('general_description.kindOfBuilding')?.message as string}

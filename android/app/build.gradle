@@ -1,6 +1,9 @@
 apply plugin: "com.android.application"
-apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "kotlin-android"
 apply plugin: "com.facebook.react"
+
+// Expo modules are configured via settings.gradle (useExpoModules()) — no manual apply needed here.
+
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 

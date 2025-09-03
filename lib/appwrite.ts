@@ -26,10 +26,30 @@ export const config = {
 };
 
 export const client = new Client();
-client
-  .setEndpoint(config.endpoint!)
-  .setProject(config.projectId!)
-  .setPlatform(config.platform!);
+
+// Determine if Appwrite is fully configured before attempting to initialize.
+const isConfigured = Boolean(
+  config.endpoint &&
+  config.projectId &&
+  config.platform &&
+  config.databaseId &&
+  config.propertiesCollectionId
+);
+
+try {
+  if (isConfigured) {
+    client
+      .setEndpoint(String(config.endpoint))
+      .setProject(String(config.projectId))
+      .setPlatform(String(config.platform));
+  } else {
+    console.warn(
+      "Appwrite config missing (EXPO_PUBLIC_* env). Skipping Appwrite initialization; features will return empty results."
+    );
+  }
+} catch (e) {
+  console.warn("Appwrite initialization failed; continuing in offline mode", e);
+}
 
 export const avatar = new Avatars(client);
 export const account = new Account(client);
@@ -40,6 +60,10 @@ export const storage = new Storage(client);
 
 
 export async function login() {
+  if (!isConfigured) {
+    console.warn("login() called but Appwrite is not configured");
+    return false;
+  }
   try {
     const redirectUri = Linking.createURL("/");
 
@@ -72,6 +96,10 @@ export async function login() {
 }
 
 export async function logout() {
+  if (!isConfigured) {
+    console.warn("logout() called but Appwrite is not configured");
+    return false;
+  }
   try {
     const result = await account.deleteSession("current");
     return result;
@@ -82,6 +110,9 @@ export async function logout() {
 }
 
 export async function getCurrentUser() {
+  if (!isConfigured) {
+    return null;
+  }
   try {
     const result = await account.get();
     // console.log("Current user:", result);
@@ -108,6 +139,10 @@ export async function getCurrentUser() {
 }
 
 export async function getLatestProperties() {
+  if (!isConfigured) {
+    console.info("getLatestProperties(): Appwrite not configured; returning []");
+    return [] as any[];
+  }
   try {
     const result = await databases.listDocuments(
       config.databaseId!,
@@ -131,6 +166,10 @@ export async function getProperties({
   query: string;
   limit?: number;
 }) {
+  if (!isConfigured) {
+    console.info("getProperties(): Appwrite not configured; returning []");
+    return [] as any[];
+  }
   try {
     const buildQuery = [Query.orderDesc("$createdAt")];
 
@@ -163,6 +202,10 @@ export async function getProperties({
 
 // write function to get property by id
 export async function getPropertyById({ id }: { id: string }) {
+  if (!isConfigured) {
+    console.info("getPropertyById(): Appwrite not configured; returning null");
+    return null;
+  }
   try {
     const result = await databases.getDocument(
       config.databaseId!,

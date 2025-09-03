@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 
-import { login } from "@/lib/appwrite";
+// import { login } from "@/lib/appwrite"; // not used in offline mode
 import { Redirect } from "expo-router";
 import { useGlobalContext } from "@/lib/global-provider";
 import icons from "@/constants/icons";
@@ -25,15 +25,6 @@ const Auth = () => {
   const { width } = useWindowDimensions();
 
   if (!loading && isLogged) return <Redirect href="/" />;
-
-  const handleLogin = async () => {
-    const result = await login();
-    if (result) {
-      refetch();
-    } else {
-      Alert.alert("Error", "Failed to login");
-    }
-  };
 
   // ✅ Dynamic image size: larger on tablets
   const imageHeight = width > 768 ? 500 : 320; // Tablet >768px, Phone otherwise

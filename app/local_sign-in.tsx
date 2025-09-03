@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { PRIMARY_COLOR } from '../constants/colors';
 import { useForm, Controller } from "react-hook-form";
-import { ArrowLeft } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { login } from "@/lib/auth";
 // avoid direct router hook usage during render; call router lazily when needed
 import { useGlobalContext } from "@/lib/global-provider";
@@ -45,7 +45,7 @@ const LoginForm: React.FC = () => {
 
                 // Navigate to home (guarded)
                 console.log("🏠 Redirecting to home...");
-                try { const r = require('expo-router'); r?.router?.replace('/'); } catch (e) { console.warn('router.replace failed', e); }
+                try { const r = require('expo-router'); r?.router?.replace?.('/'); } catch (e) { console.warn('router.replace failed', e); }
 
             } else {
                 Alert.alert("Login Failed", "Invalid email or password. Please try again.");
@@ -64,7 +64,7 @@ const LoginForm: React.FC = () => {
     };
 
     const handleGoBack = () => {
-        try { const r = require('expo-router'); r?.router?.back(); } catch (e) { console.warn('router.back failed', e); }
+        try { const r = require('expo-router'); r?.router?.back?.(); } catch (e) { console.warn('router.back failed', e); }
     };
 
     // Show loading screen while checking auth
@@ -80,7 +80,7 @@ const LoginForm: React.FC = () => {
     // If already logged in, redirect
     if (isLogged) {
         console.log("✅ User already logged in, redirecting...");
-        try { const r = require('expo-router'); r?.router?.replace('/'); } catch (e) { console.warn('router.replace failed', e); }
+    try { const r = require('expo-router'); r?.router?.replace?.('/'); } catch (e) { console.warn('router.replace failed', e); }
         return null;
     }
 
@@ -92,7 +92,7 @@ const LoginForm: React.FC = () => {
                 className="absolute top-12 left-6 p-2"
                 disabled={isSubmitting}
             >
-                <ArrowLeft size={28} color="#111" />
+                <Ionicons name="arrow-back" size={28} color="#111" />
             </TouchableOpacity>
 
             <Text className="text-3xl font-bold text-center text-gray-900 mb-2">
