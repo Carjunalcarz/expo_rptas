@@ -2,10 +2,10 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, TouchableOpacity, Alert, View, Modal, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { syncPending, saveAssessment } from '../../../lib/local-db';
+import { syncPending, saveAssessment, updateAssessment, getAssessmentById } from '../../../lib/local-db';
 import { SYNC_API_URL } from '../../../constants/sync';
 import { useEffect } from 'react';
-import { router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useForm, FormProvider } from "react-hook-form";
 import OwnerDetailsForm from "../../../components/OwnerDetailsForm";
@@ -54,23 +54,39 @@ const dummy_data = (): AssessmentFormData => ({
 });
 
 const AddAssessment: React.FC = () => {
+    const params = useLocalSearchParams<{ mode?: string; id?: string }>();
+    const isEdit = (params?.mode === 'edit');
+    const editId = params?.id ? Number(params.id) : undefined;
     const methods = useForm<AssessmentFormData>({ defaultValues: DEFAULT_VALUES });
     const { handleSubmit, reset, getValues } = methods;
     const [previewVisible, setPreviewVisible] = React.useState(false);
     const [previewData, setPreviewData] = React.useState<AssessmentFormData | null>(null);
+    const [loading, setLoading] = React.useState(true);
+    const [lastMeta, setLastMeta] = React.useState<{ local_id?: number; createdAt?: string } | null>(null);
     const showPreview = () => { setPreviewData(getValues()); setPreviewVisible(true); };
     const cancelPreview = () => { setPreviewVisible(false); };
     const confirmSave = () => { setPreviewVisible(false); handleSubmit(onSubmit)(); };
     const onSubmit = async (data: AssessmentFormData) => {
         try {
-            const entry = { createdAt: new Date().toISOString(), data };
-            // Persist via local DB (SQLite if available, otherwise AsyncStorage fallback)
-            await saveAssessment(entry);
-            // Also keep a last_assessment for quick preview/edit continuity
-            await AsyncStorage.setItem('last_assessment', JSON.stringify(entry));
-            Alert.alert('Assessment Saved', 'Saved to device');
-            // Go back to the previous screen (Assessments list) so it can refresh
-            try { const r = require('expo-router'); r?.router?.back(); } catch (e) { /* ignore navigation errors */ }
+            if (isEdit && lastMeta?.local_id) {
+                await updateAssessment(lastMeta.local_id, data);
+                await AsyncStorage.setItem('last_assessment', JSON.stringify({ createdAt: lastMeta?.createdAt || new Date().toISOString(), data, local_id: lastMeta.local_id }));
+                Alert.alert('Assessment Updated', 'Changes saved to device');
+                // Navigate back to the edited detail screen
+                try {
+                    const r = require('expo-router');
+                    r?.router?.replace?.({ pathname: '/assessment/[id]', params: { id: String(lastMeta.local_id) } });
+                } catch (e) { /* ignore */ }
+            } else {
+                const entry = { createdAt: new Date().toISOString(), data };
+                // Persist via local DB (SQLite if available, otherwise AsyncStorage fallback)
+                const newId = await saveAssessment(entry);
+                // Also keep a last_assessment for quick preview/edit continuity
+                await AsyncStorage.setItem('last_assessment', JSON.stringify({ ...entry, local_id: newId }));
+                Alert.alert('Assessment Saved', 'Saved to device');
+                // Go back to the list so it can refresh
+                try { const r = require('expo-router'); r?.router?.back(); } catch (e) { /* ignore navigation errors */ }
+            }
         } catch (err: any) {
             console.error('Failed to save assessment', err);
             Alert.alert('Save failed', err?.message || 'An error occurred while saving');
@@ -79,10 +95,39 @@ const AddAssessment: React.FC = () => {
     const fillDummyData = () => reset(dummy_data());
     const clearForm = () => reset(DEFAULT_VALUES);
 
+    React.useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                if (isEdit) {
+                    // If coming from edit, prefill with last_assessment
+                    const raw = await AsyncStorage.getItem('last_assessment');
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (mounted) {
+                            if (parsed?.data) reset(parsed.data);
+                            setLastMeta({ local_id: parsed?.local_id ?? (editId || undefined), createdAt: parsed?.createdAt });
+                        }
+                    } else if (editId) {
+                        // Fallback: fetch from DB by id
+                        const row = await getAssessmentById(editId);
+                        if (row && mounted) {
+                            reset(row.data);
+                            setLastMeta({ local_id: row.local_id, createdAt: row.created_at });
+                        }
+                    }
+                }
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
             <ScrollView style={{ padding: 16 }} contentContainerStyle={{ paddingBottom: 140 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={true}>
-                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 16 }}>Add Assessment</Text>
+                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 16 }}>{isEdit ? 'Edit Assessment' : 'Add Assessment'}</Text>
                 <FormProvider {...methods}>
                     <OwnerDetailsForm />
                     <BuildingLocationForm />
@@ -94,7 +139,7 @@ const AddAssessment: React.FC = () => {
                     <PropertyAssessment />
                 </FormProvider>
                 <TouchableOpacity onPress={showPreview} style={{ backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, marginTop: 16 }}>
-                    <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: '700', fontSize: 18 }}>Save Assessment</Text>
+                    <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: '700', fontSize: 18 }}>{isEdit ? 'Save Changes' : 'Save Assessment'}</Text>
                 </TouchableOpacity>
             </ScrollView>
             <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 24 }}>
@@ -122,7 +167,7 @@ const AddAssessment: React.FC = () => {
                         </ScrollView>
                         <View style={styles.modalActions}>
                             <Pressable style={[styles.actionButton, { backgroundColor: '#f3f3f3' }]} onPress={cancelPreview}><Text style={{ color: '#333' }}>Cancel</Text></Pressable>
-                            <Pressable style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]} onPress={confirmSave}><Text style={{ color: '#fff' }}>Confirm Save</Text></Pressable>
+                            <Pressable style={[styles.actionButton, { backgroundColor: PRIMARY_COLOR }]} onPress={confirmSave}><Text style={{ color: '#fff' }}>{isEdit ? 'Confirm Update' : 'Confirm Save'}</Text></Pressable>
                         </View>
                     </View>
                 </View>

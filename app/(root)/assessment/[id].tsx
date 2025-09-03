@@ -1,44 +1,69 @@
 import React from 'react';
-import { View, ScrollView, Image, Text, TouchableOpacity, FlatList, Dimensions, Platform, Linking } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getAssessmentById, deleteAssessment } from '@/lib/local-db';
+import { View, ScrollView, Text, TouchableOpacity, Dimensions, Linking, Alert, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import images from '@/constants/images';
-import icons from '@/constants/icons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { LogBox } from 'react-native';
+import images from '@/constants/images';
+import { getAssessmentById, deleteAssessment, getAllAssessments } from '@/lib/local-db';
+import { getRouter } from '@/lib/router';
+import { FormProvider, useForm } from 'react-hook-form';
+import HeaderHero from './components/HeaderHero';
+import OwnerCard from './components/OwnerCard';
+import Tabs from './components/Tabs';
+import Sections from './components/Sections';
+
 
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
 const AssessmentDetail: React.FC = () => {
     const { id } = useLocalSearchParams<{ id?: string }>();
-    const router = useRouter();
     const [assessment, setAssessment] = React.useState<any | null>(null);
     const [meta, setMeta] = React.useState<any | null>(null);
     const [activeTab, setActiveTab] = React.useState('overview');
+    const [loading, setLoading] = React.useState(true);
+    const [notFound, setNotFound] = React.useState(false);
 
     React.useEffect(() => {
         let mounted = true;
         (async () => {
-            if (!id) return;
-            const localId = Number(id);
-            const row = await getAssessmentById(localId);
-            if (mounted) {
-                setAssessment(row?.data ?? null);
-                setMeta(row ? { local_id: row.local_id, remote_id: row.remote_id ?? null, created_at: row.created_at, synced: !!row.synced } : null);
+            try {
+                if (!id) { setNotFound(true); return; }
+                let row = null as any;
+                const numericId = Number(id);
+                if (!Number.isNaN(numericId)) {
+                    row = await getAssessmentById(numericId);
+                }
+                // Fallback: when id is a createdAt string (from AsyncStorage list injection)
+                if (!row) {
+                    const list = await getAllAssessments();
+                    row = list.find((r: any) => String(r.local_id) === String(id) || String(r.created_at) === String(id)) ?? null;
+                }
+                if (mounted) {
+                    if (!row) {
+                        setNotFound(true);
+                        setAssessment(null);
+                        setMeta(null);
+                    } else {
+                        setAssessment(row.data ?? null);
+                        setMeta({ local_id: row.local_id, remote_id: row.remote_id ?? null, created_at: row.created_at, synced: !!row.synced });
+                    }
+                }
+            } finally {
+                if (mounted) setLoading(false);
             }
         })();
         return () => { mounted = false; };
     }, [id]);
 
-    const headerImage = assessment?.general_description?.floorPlanImages?.[0] || assessment?.property_appraisal?.gallery?.[0]?.image || images.noResult;
-    const headerImageSource = typeof headerImage === 'string' && headerImage.length ? { uri: headerImage } : headerImage;
+    const methods = useForm({
+        defaultValues: assessment || {},
+        values: assessment || {},
+    });
 
-    const gallery = assessment?.general_description?.floorPlanImages || [];
-
-    const ownerAvatar = assessment?.owner_details?.avatar;
-    const ownerAvatarSource = typeof ownerAvatar === 'string' && ownerAvatar.length ? { uri: ownerAvatar } : images.avatar;
+    React.useEffect(() => {
+        methods.reset(assessment || {});
+    }, [assessment]);
 
     const formatPHP = (v: number) => {
         try {
@@ -48,67 +73,7 @@ const AssessmentDetail: React.FC = () => {
         }
     };
 
-    const renderMaterials = (obj: any) => {
-        if (!obj) return '-';
-        const parts: string[] = [];
-        for (const k of Object.keys(obj)) {
-            if (typeof obj[k] === 'boolean' && obj[k]) parts.push(k);
-            if (typeof obj[k] === 'string' && obj[k]) parts.push(`${k}: ${obj[k]}`);
-        }
-        return parts.length ? parts.join(', ') : '-';
-    };
-
-    // New helper to display only true material properties with a checkbox
-    const renderMaterialCheckboxList = (obj: Record<string, any> | undefined) => {
-        if (!obj) return <Text className="text-sm text-gray-600">—</Text>;
-        const keys = Object.keys(obj).filter(key => obj[key] === true);
-        if (keys.length === 0) return <Text className="text-sm text-gray-600">—</Text>;
-        return (
-            <View className="mt-1">
-                {keys.map(key => (
-                    <View key={key} className="flex-row items-center py-1">
-                        <Icon name="check-box" size={18} color="#4A90E2" />
-                        <Text className="ml-2 text-sm text-gray-800">{key}</Text>
-                    </View>
-                ))}
-            </View>
-        );
-    };
-
-    const renderAppraisalTable = (app: any) => {
-        if (!app) return <Text className="text-sm text-gray-700">No appraisal data</Text>;
-        // normalize to rows
-        const rows = Array.isArray(app) ? app : (app.description ? (Array.isArray(app.description) ? app.description : [app.description]) : []);
-        return (
-            <View className="mt-3">
-                {rows.map((r: any, i: number) => (
-                    <View key={i} className="py-3 border-b border-gray-100">
-                        <Text className="text-sm font-rubik-medium text-gray-800">{(r && r.kindOfBuilding) ? `${r.structuralType || ''} ${r.kindOfBuilding || ''}`.trim() : 'Building'}</Text>
-                        <View className="flex-row justify-between mt-2">
-                            <Text className="text-xs text-gray-600">Area</Text>
-                            <Text className="text-xs font-rubik-medium text-gray-800">{r.area || app.area || '-'}</Text>
-                        </View>
-                        <View className="flex-row justify-between mt-1">
-                            <Text className="text-xs text-gray-600">Unit value</Text>
-                            <Text className="text-xs font-rubik-medium text-gray-800">{r.unit_value || app.unit_value || '-'}</Text>
-                        </View>
-                        <View className="flex-row justify-between mt-1">
-                            <Text className="text-xs text-gray-600">Base market value</Text>
-                            <Text className="text-xs font-rubik-medium text-gray-800">{r.baseMarketValue || app.baseMarketValue || '-'}</Text>
-                        </View>
-                        <View className="flex-row justify-between mt-1">
-                            <Text className="text-xs text-gray-600">Depreciation</Text>
-                            <Text className="text-xs font-rubik-medium text-gray-800">{r.depreciation || app.depreciation || '-'}</Text>
-                        </View>
-                        <View className="flex-row justify-between mt-1">
-                            <Text className="text-xs text-gray-600">Market value</Text>
-                            <Text className="text-xs font-rubik-medium text-gray-800">{r.marketValue || app.marketValue || '-'}</Text>
-                        </View>
-                    </View>
-                ))}
-            </View>
-        );
-    };
+    // legacy inline render helpers removed; content now lives in ./components/Sections
 
     const handleCall = () => {
         if (assessment?.owner_details?.telNo) {
@@ -122,11 +87,11 @@ const AssessmentDetail: React.FC = () => {
     };
 
     const handleEdit = async () => {
-        // Prefill the add assessment form by saving to last_assessment then navigate
         try {
-            const entry = { createdAt: meta?.created_at ?? new Date().toISOString(), data: assessment };
+            const entry = { createdAt: meta?.created_at ?? new Date().toISOString(), data: assessment, local_id: meta?.local_id } as any;
             await AsyncStorage.setItem('last_assessment', JSON.stringify(entry));
-            router.push('/assessment/add_assessment');
+            const router = getRouter();
+            if (router) router.push({ pathname: '/assessment/edit/[id]', params: { id: String(meta?.local_id ?? '') } });
         } catch (err) {
             console.warn('handleEdit failed', err);
         }
@@ -139,353 +104,88 @@ const AssessmentDetail: React.FC = () => {
                 return;
             }
             // confirmation
-            const confirmed = await new Promise((resolve) => {
-                // Using window.Alert replacement via simple confirm pattern
-                // but React Native Alert API used in other files; use it here
-                const { Alert } = require('react-native');
-                Alert.alert('Delete assessment', 'Are you sure you want to delete this assessment? This cannot be undone.', [
-                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                    { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
-                ]);
-            });
-            if (!confirmed) return;
-            await deleteAssessment(meta.local_id);
-            // navigate back to list
-            router.back();
+            Alert.alert('Delete assessment', 'Are you sure you want to delete this assessment? This cannot be undone.', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete', style: 'destructive', onPress: async () => {
+                        await deleteAssessment(meta.local_id);
+                        getRouter()?.back();
+                    }
+                },
+            ]);
         } catch (err) {
             console.warn('delete error', err);
         }
     };
 
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'overview':
-                return (
-                    <View>
-                        <View className="mt-5">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Property Details</Text>
-                            <View className="bg-white rounded-xl p-4 shadow-sm">
-                                <View className="flex-row justify-between py-2">
-                                    <Text className="text-sm text-gray-600">Building Type</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.general_description?.kindOfBuilding || '—'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Structural Type</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.property_assessment?.building_category || assessment?.general_description?.structuralType || '—'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Total Floor Area</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.general_description?.totalFloorArea || '0'} sq.m</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Building Permit No.</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.general_description?.buildingPermitNo || '—'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">CCT</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.general_description?.condominiumCCT || '—'}</Text>
-                                </View>
-                            </View>
-                        </View>
+    // Clean top-level render with early returns and componentized sections
+    if (loading) {
+        return (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" />
+            </View>
+        );
+    }
 
-                        {gallery && gallery.length > 0 && (
-                            <View className="mt-7">
-                                <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Gallery</Text>
-                                <FlatList
-                                    contentContainerStyle={{ paddingRight: 20 }}
-                                    data={gallery}
-                                    keyExtractor={(item, idx) => String(idx)}
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    renderItem={({ item }) => {
-                                        const itemSrc = typeof item === 'string' && item.length ? { uri: item } : images.noResult;
-                                        return <Image source={itemSrc} className="w-40 h-32 rounded-xl mr-3" resizeMode="cover" />
-                                    }}
-                                />
-                            </View>
-                        )}
-
-                        <View className="mt-7">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Location</Text>
-                            <View className="flex-row items-center bg-white rounded-xl p-4 shadow-sm">
-                                <Icon name="location-on" size={20} color="#4A90E2" />
-                                <Text className="text-sm text-gray-800 ml-2 flex-1">
-                                    {assessment?.building_location ?
-                                        `${assessment.building_location.street || ''}, ${assessment.building_location.barangay || ''}, ${assessment.building_location.municipality || ''}, ${assessment.building_location.province || ''}`
-                                        : '—'
-                                    }
-                                </Text>
-                            </View>
-                            <Image source={images.map} className="h-40 w-full mt-3 rounded-xl" resizeMode="cover" />
-                        </View>
-                    </View>
-                );
-
-            case 'details':
-                return (
-                    <View>
-                        {/* Land Reference */}
-                        <View className="mt-5">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Land Reference</Text>
-                            <View className="bg-white rounded-xl p-4 shadow-sm">
-                                <View className="flex-row justify-between py-2">
-                                    <Text className="text-sm text-gray-600">Owner</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.land_reference?.owner || '—'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Title No.</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.land_reference?.titleNumber || '—'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Lot/Block</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.land_reference?.lotNumber || '-'}/{assessment?.land_reference?.blockNumber || '-'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Survey / TDN-ARP</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.land_reference?.surveyNumber || '-'}/{assessment?.land_reference?.tdnArpNumber || '-'}</Text>
-                                </View>
-                                <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                    <Text className="text-sm text-gray-600">Area</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{assessment?.land_reference?.area || '0'} sq.m</Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Structural Materials */}
-                        <View className="mt-7">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3 ">Structural Materials</Text>
-                            <View className="flex-col space-y-4">
-                                {(['Foundation', 'Columns', 'Beams', 'Roof'] as const).map(cat => (
-                                    <View key={cat} className="bg-white rounded-xl p-4 m-4 shadow-sm">
-                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">{cat}</Text>
-                                        {renderMaterialCheckboxList(assessment?.structural_materials?.[cat.toLowerCase()])}
-                                    </View>
-                                ))}
-                                {Array.isArray(assessment?.structural_materials?.flooring) && (
-                                    <View className="bg-white rounded-xl p-4 shadow-sm">
-                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Flooring</Text>
-                                        {assessment.structural_materials.flooring.map((f: any, i: number) => (
-                                            <View key={i} className="flex-row justify-between py-1">
-                                                <Text className="text-xs text-gray-600">{f.floorName}</Text>
-                                                <Text className="text-xs font-rubik-medium text-gray-800">{f.material || '-'}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
-                                {Array.isArray(assessment?.structural_materials?.wallsPartitions) && (
-                                    <View className="bg-white rounded-xl p-4 shadow-sm">
-                                        <Text className="text-sm font-rubik-medium text-gray-800 mb-2">Walls / Partitions</Text>
-                                        {assessment.structural_materials.wallsPartitions.map((w: any, i: number) => (
-                                            <View key={i} className="flex-row justify-between py-1">
-                                                <Text className="text-xs text-gray-600">{w.wallName}</Text>
-                                                <Text className="text-xs font-rubik-medium text-gray-800">{w.material || '-'}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                    </View>
-                );
-
-            case 'appraisal':
-                return (
-                    <View>
-                        {/* Property Appraisal */}
-                        <View className="mt-5">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Property Appraisal</Text>
-                            <View className="bg-white rounded-xl p-4 shadow-sm">
-                                {renderAppraisalTable(assessment?.property_appraisal)}
-                            </View>
-                        </View>
-
-                        {/* Additional Items */}
-                        <View className="mt-7">
-                            <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Additional Items</Text>
-                            <View className="bg-white rounded-xl p-4 shadow-sm">
-                                {Array.isArray(assessment?.additionalItems?.items) && assessment.additionalItems.items.length > 0 ? (
-                                    assessment.additionalItems.items.map((it: any, i: number) => (
-                                        <View key={i} className="flex-row justify-between py-2 border-b border-gray-100">
-                                            <Text className="text-sm text-gray-700">{it.name || `Item ${i + 1}`}</Text>
-                                            <Text className="text-sm text-gray-700">{formatPHP(Number(it.amount) || 0)}</Text>
-                                        </View>
-                                    ))
-                                ) : (
-                                    <Text className="text-sm text-gray-700 py-2">No additional items</Text>
-                                )}
-                                <View className="flex-row justify-between mt-3 pt-2 border-t border-gray-200">
-                                    <Text className="text-sm font-rubik-medium text-gray-800">Subtotal</Text>
-                                    <Text className="text-sm font-rubik-medium text-gray-800">{formatPHP(Number(assessment?.additionalItems?.subTotal) || 0)}</Text>
-                                </View>
-                                <View className="flex-row justify-between mt-2">
-                                    <Text className="text-base font-rubik-bold text-gray-900">Total</Text>
-                                    <Text className="text-base font-rubik-bold text-gray-900">{formatPHP(Number(assessment?.additionalItems?.total) || 0)}</Text>
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-                );
-
-            default:
-                return null;
-        }
-    };
+    if (notFound || !assessment) {
+        return (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                <Text style={{ fontSize: 16, color: '#6b7280', textAlign: 'center' }}>Assessment not found.</Text>
+                <TouchableOpacity onPress={() => getRouter()?.back()} style={{ marginTop: 16, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#3b82f6', borderRadius: 8 }}>
+                    <Text style={{ color: 'white', fontWeight: '600' }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
-        <View className="flex-1 bg-gray-50">
-            {/* Header with Image */}
-            <View style={{ height: windowHeight / 3 }} className="relative w-full">
-                <Image source={headerImageSource} className="size-full" resizeMode="cover" />
-                <View className="absolute inset-0 bg-black/30" />
+        <FormProvider {...methods}>
+            <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+                    <HeaderHero onBack={() => getRouter()?.back()} />
+                    <OwnerCard onMessage={handleMessage} onCall={handleCall} onEdit={handleEdit} onDelete={handleDeleteRecord} />
+                    <Tabs value={activeTab} onChange={setActiveTab} />
 
-                {/* Back Button */}
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    className="absolute top-14 left-5 z-50 bg-white/20 rounded-full p-2"
-                    style={{ padding: 12 }}
-                >
-                    <Icon name="arrow-back" size={24} color="#FFF" />
-                </TouchableOpacity>
+                    <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+                        <Sections activeTab={activeTab} />
 
-                {/* Header Content */}
-                <View className="absolute bottom-0 left-0 right-0 p-5 pb-6">
-                    <Text className="text-2xl font-rubik-bold text-white mb-1">{assessment?.owner_details?.owner || 'Assessment'}</Text>
-                    <Text className="text-sm text-white/90 mb-3">
-                        {assessment?.building_location ?
-                            `${assessment.building_location.street || ''}${assessment.building_location.street ? ', ' : ''}${assessment.building_location.municipality || ''}`
-                            : '—'
-                        }
-                    </Text>
-
-                    <View className="flex-row flex-wrap gap-2">
-                        <View className="bg-white/20 px-3 py-1 rounded-full">
-                            <Text className="text-xs text-white">{assessment?.general_description?.kindOfBuilding || '—'}</Text>
-                        </View>
-                        <View className="bg-white/20 px-3 py-1 rounded-full">
-                            <Text className="text-xs text-white">{assessment?.property_assessment?.building_category || assessment?.general_description?.structuralType || '—'}</Text>
-                        </View>
-                    </View>
-                </View>
-            </View>
-
-            {/* Main Content */}
-            <View className="flex-1">
-                {/* Owner Card */}
-                <View className="mx-5 -mt-10 z-10 bg-white rounded-xl p-4 shadow-lg">
-                    <View className="flex-row items-center">
-                        <Image source={ownerAvatarSource} className="w-16 h-16 rounded-full mr-4" />
-                        <View className="flex-1">
-                            <Text className="text-lg font-rubik-bold text-gray-800">{assessment?.owner_details?.owner || '—'}</Text>
-                            <Text className="text-sm text-gray-600 mt-1">{assessment?.owner_details?.address || '—'}</Text>
-                        </View>
-                        <View className="flex-row gap-2">
-                            <TouchableOpacity
-                                onPress={handleMessage}
-                                className="p-3 rounded-full bg-blue-50"
-                            >
-                                <Icon name="message" size={20} color="#4A90E2" />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={handleCall}
-                                className="p-3 rounded-full bg-blue-50"
-                            >
-                                <Icon name="call" size={20} color="#4A90E2" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View className="flex-row justify-between mt-4">
-                        <View className="items-center flex-1">
-                            <Text className="text-xs text-gray-500">Area</Text>
-                            <Text className="text-base font-rubik-bold text-gray-800 mt-1">{assessment?.general_description?.totalFloorArea || '0'} sq.m</Text>
-                        </View>
-                        <View className="items-center flex-1 border-l border-r border-gray-100">
-                            <Text className="text-xs text-gray-500">Tel</Text>
-                            <Text className="text-base font-rubik-bold text-gray-800 mt-1">{assessment?.owner_details?.telNo || '—'}</Text>
-                        </View>
-                        <View className="items-center flex-1">
-                            <Text className="text-xs text-gray-500">Market Value</Text>
-                            <Text className="text-base font-rubik-bold text-gray-800 mt-1">
-                                {assessment?.property_assessment?.market_value ? formatPHP(assessment.property_assessment.market_value) : '-'}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Tab Navigation */}
-                <View className="flex-row mx-5 mt-6 border-b border-gray-200">
-                    <TouchableOpacity
-                        className={`flex-1 py-3 px-4 items-center ${activeTab === 'overview' ? 'border-b-2 border-blue-500' : ''}`}
-                        onPress={() => setActiveTab('overview')}
-                    >
-                        <Text className={`font-rubik-medium ${activeTab === 'overview' ? 'text-blue-500' : 'text-gray-500'}`}>Overview</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        className={`flex-1 py-3 px-4 items-center ${activeTab === 'details' ? 'border-b-2 border-blue-500' : ''}`}
-                        onPress={() => setActiveTab('details')}
-                    >
-                        <Text className={`font-rubik-medium ${activeTab === 'details' ? 'text-blue-500' : 'text-gray-500'}`}>Details</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        className={`flex-1 py-3 px-4 items-center ${activeTab === 'appraisal' ? 'border-b-2 border-blue-500' : ''}`}
-                        onPress={() => setActiveTab('appraisal')}
-                    >
-                        <Text className={`font-rubik-medium ${activeTab === 'appraisal' ? 'text-blue-500' : 'text-gray-500'}`}>Appraisal</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Tab Content */}
-                <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
-                    className="mt-4"
-                >
-                    {renderContent()}
-
-                    {/* Record metadata */}
-                    <View className="mt-7 mb-10">
-                        <Text className="text-lg font-rubik-bold text-gray-800 mb-3">Record Information</Text>
-                        <View className="bg-white rounded-xl p-4 shadow-sm">
-                            <View className="flex-row justify-between py-2">
-                                <Text className="text-sm text-gray-600">Local ID</Text>
-                                <Text className="text-sm font-rubik-medium text-gray-800">{meta?.local_id ?? '-'}</Text>
-                            </View>
-                            <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                <Text className="text-sm text-gray-600">Created At</Text>
-                                <Text className="text-sm font-rubik-medium text-gray-800">{meta?.created_at ? new Date(meta.created_at).toLocaleString() : '-'}</Text>
-                            </View>
-                            <View className="flex-row justify-between py-2 border-t border-gray-100">
-                                <Text className="text-sm text-gray-600">Synced</Text>
-                                <Text className="text-sm font-rubik-medium text-gray-800">{meta?.synced ? 'Yes' : 'No'}</Text>
+                        <View style={{ marginTop: 28, marginBottom: 40 }}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Record Information</Text>
+                            <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
+                                    <Text style={{ fontSize: 14, color: '#6b7280' }}>Local ID</Text>
+                                    <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{meta?.local_id ?? '-'}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                    <Text style={{ fontSize: 14, color: '#6b7280' }}>Created At</Text>
+                                    <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{meta?.created_at ? new Date(meta.created_at).toLocaleString() : '-'}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                    <Text style={{ fontSize: 14, color: '#6b7280' }}>Synced</Text>
+                                    <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{meta?.synced ? 'Yes' : 'No'}</Text>
+                                </View>
                             </View>
                         </View>
                     </View>
                 </ScrollView>
-            </View>
 
-            {/* Fixed Bottom Action Bar */}
-            <View className="absolute bottom-0 left-0 right-0 bg-white p-5 border-t border-gray-200">
-                <View className="flex-row items-center justify-between">
-                    <View>
-                        <Text className="text-xs text-gray-600">Total Assessment</Text>
-                        <Text className="text-xl font-rubik-bold text-blue-600">
-                            {assessment?.property_assessment?.market_value ? formatPHP(assessment.property_assessment.market_value) : '-'}
-                        </Text>
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'white', padding: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View>
+                            <Text style={{ fontSize: 12, color: '#6b7280' }}>Total Assessment</Text>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2563eb' }}>
+                                {assessment?.property_assessment?.market_value ? formatPHP(assessment.property_assessment.assessment_value) : '-'}
+                            </Text>
+                        </View>
+                        <TouchableOpacity style={{ backgroundColor: '#3b82f6', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 9999, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2, flexDirection: 'row', alignItems: 'center' }}>
+                            <Icon name="share" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                            <Text style={{ color: 'white', fontWeight: 'bold' }}>Pay Now</Text>
+                        </TouchableOpacity>
                     </View>
-                    <TouchableOpacity className="bg-blue-500 py-3 px-6 rounded-full shadow-md flex-row items-center">
-                        <Icon name="share" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                        <Text className="text-white font-rubik-bold">Share Report</Text>
-                    </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </FormProvider>
     );
 };
 
-// Suppress navigation context warning at runtime
-LogBox.ignoreLogs(["Couldn't find a navigation context"]);
-
-// Default export as Page for expo-router dynamic route context
-export default function Page() {
-    return <AssessmentDetail />;
-}
+export default AssessmentDetail;

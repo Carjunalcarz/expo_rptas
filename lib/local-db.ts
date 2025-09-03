@@ -93,6 +93,28 @@ export async function saveAssessment(entry: { createdAt: string; data: any }) {
   return localId;
 }
 
+/** Update an existing local assessment's data by local_id. Resets synced=0. */
+export async function updateAssessment(localId: number, data: any) {
+  if (db) {
+    const sql = `UPDATE assessments SET data = ?, synced = 0 WHERE local_id = ?;`;
+    await execSql(sql, [JSON.stringify(data), localId]);
+    return;
+  }
+
+  const raw = await AsyncStorage.getItem(FALLBACK_KEY);
+  const list = raw ? JSON.parse(raw) as any[] : [];
+  const idx = list.findIndex((r: any) => r.local_id === localId);
+  if (idx >= 0) {
+    list[idx].data = data;
+    list[idx].synced = 0;
+    await AsyncStorage.setItem(FALLBACK_KEY, JSON.stringify(list));
+  } else {
+    // If not found, create a new record with provided id semantics (rare case)
+    list.push({ local_id: localId, remote_id: null, created_at: new Date().toISOString(), data, synced: 0 });
+    await AsyncStorage.setItem(FALLBACK_KEY, JSON.stringify(list));
+  }
+}
+
 export async function getPendingAssessments() {
   if (db) {
     const sql = `SELECT * FROM assessments WHERE synced = 0;`;

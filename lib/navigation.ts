@@ -21,4 +21,8 @@ export function navigateToAddAssessment() {
   pushPath({ pathname: '/(root)/assessment/add_assessment' });
 }
 
-export default { pushPath, navigateToAssessment, navigateToAddAssessment };
+export function navigateToEditAssessment(id: number | string) {
+  pushPath({ pathname: '/(root)/assessment/edit/[id]', params: { id: String(id) } });
+}
+
+export default { pushPath, navigateToAssessment, navigateToAddAssessment, navigateToEditAssessment };
