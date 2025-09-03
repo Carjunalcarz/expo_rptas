@@ -7,6 +7,8 @@ import { useGlobalContext } from "@/lib/global-provider";
 export default function AppLayout() {
   const { loading, isLogged } = useGlobalContext();
 
+  // Suppression is handled globally in app/_layout.tsx
+
   if (loading) {
     return (
       <SafeAreaView className="bg-white h-full flex justify-center items-center">

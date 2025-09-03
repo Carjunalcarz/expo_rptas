@@ -3,15 +3,30 @@ import { View, TouchableOpacity, Image, TextInput } from "react-native";
 import { useDebouncedCallback } from "use-debounce";
 
 import icons from "@/constants/icons";
-import { useLocalSearchParams, router, usePathname } from "expo-router";
+import { usePathname, useSegments } from "expo-router";
 
 const Search = () => {
   const path = usePathname();
-  const params = useLocalSearchParams<{ query?: string }>();
-  const [search, setSearch] = useState(params.query);
+  // useSegments is safer when router context may not be ready during initial render
+  const segments = useSegments();
+  const paramsQuery = (() => {
+    try {
+      const r = require('expo-router');
+      const p = r?.useLocalSearchParams?.() || {};
+      return p.query;
+    } catch (e) {
+      return undefined;
+    }
+  })();
+  const [search, setSearch] = useState(paramsQuery);
 
   const debouncedSearch = useDebouncedCallback((text: string) => {
-    router.setParams({ query: text });
+    try {
+      const r = require('expo-router');
+      r?.router?.setParams?.({ query: text });
+    } catch (e) {
+      console.warn('router.setParams failed', e);
+    }
   }, 500);
 
   const handleSearch = (text: string) => {

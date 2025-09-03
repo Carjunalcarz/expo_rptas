@@ -47,7 +47,10 @@ export const useAppwrite = <T, P extends Record<string, string | number>>({
     if (!skip) {
       fetchData(params);
     }
-  }, []);
+    // Only re-run when the fetch function identity changes or skip changes.
+    // We intentionally do NOT include `params` here because callers often pass
+    // inline object literals which would cause this effect to run every render.
+  }, [fetchData, skip]);
 
   const refetch = async (newParams: P) => await fetchData(newParams);
 

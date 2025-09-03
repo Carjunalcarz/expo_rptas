@@ -27,13 +27,13 @@ const propertyTypes = [
 
 const facilities = [
   "Laundry",
-  "Car Parking",
-  "Sports Center",
+  "CarParking",
+  "SportsCenter",
   "Cutlery",
   "Gym",
-  "Swimming pool",
+  "SwimmingPool",
   "Wifi",
-  "Pet Center",
+  "PetCenter",
 ];
 
 function getRandomSubset<T>(
@@ -69,6 +69,12 @@ function getRandomSubset<T>(
   // Return the first `subsetSize` elements of the shuffled array
   return arrayCopy.slice(0, subsetSize);
 }
+
+// Dummy user data for local login testing
+export const dummyUsers = [
+  { email: "test@example.com", password: "password123" },
+  { email: "user@example.com", password: "admin123" },
+];
 
 async function seed() {
   try {

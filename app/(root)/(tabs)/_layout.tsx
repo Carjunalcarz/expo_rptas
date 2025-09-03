@@ -1,6 +1,5 @@
 import { Tabs } from "expo-router";
 import { Image, ImageSourcePropType, Text, View } from "react-native";
-
 import icons from "@/constants/icons";
 
 const TabIcon = ({
@@ -20,11 +19,10 @@ const TabIcon = ({
       className="size-6"
     />
     <Text
-      className={`${
-        focused
-          ? "text-primary-300 font-rubik-medium"
-          : "text-black-200 font-rubik"
-      } text-xs w-full text-center mt-1`}
+      className={`${focused
+        ? "text-primary-300 font-rubik-medium"
+        : "text-black-200 font-rubik"
+        } text-xs w-full text-center mt-1`}
     >
       {title}
     </Text>
@@ -37,6 +35,7 @@ const TabsLayout = () => {
       screenOptions={{
         tabBarShowLabel: false,
         tabBarStyle: {
+          paddingBottom: 20,
           backgroundColor: "white",
           borderTopColor: "#0061FF1A",
           borderTopWidth: 1,
@@ -64,6 +63,15 @@ const TabsLayout = () => {
         }}
       />
       <Tabs.Screen
+        name="assessment"
+        options={{
+          title: "Assessment",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} icon={icons.area} title="Assessment" />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
@@ -72,6 +80,8 @@ const TabsLayout = () => {
           ),
         }}
       />
+
+      {/* no additional tab screens here — hidden screens live outside the tabs folder */}
     </Tabs>
   );
 };
