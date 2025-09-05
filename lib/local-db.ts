@@ -131,7 +131,9 @@ export async function getPendingAssessments() {
 
   const raw = await AsyncStorage.getItem(FALLBACK_KEY);
   const list = raw ? JSON.parse(raw) as any[] : [];
-  return list.map((r: any) => ({
+  // Only include unsynced
+  const pending = list.filter((r: any) => !r.synced || r.synced === 0);
+  return pending.map((r: any) => ({
     local_id: r.local_id,
     remote_id: r.remote_id ?? null,
     created_at: r.created_at,

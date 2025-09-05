@@ -18,6 +18,9 @@ export default function OwnerCard({ onMessage, onCall, onEdit, onDelete }: Props
 
     const ownerAvatar = assessment?.owner_details?.avatar;
     const ownerAvatarSource = typeof ownerAvatar === 'string' && ownerAvatar.length ? { uri: ownerAvatar } : images.avatar;
+    const loc = assessment?.building_location || {};
+    const addressParts = [loc?.barangay, loc?.municipality].filter(Boolean);
+    const addressCascade = "Brgy. " + (addressParts.length ? addressParts.join('\n') : '—');
 
     return (
         <>
@@ -27,7 +30,7 @@ export default function OwnerCard({ onMessage, onCall, onEdit, onDelete }: Props
                     <Image source={ownerAvatarSource} style={{ width: 64, height: 64, borderRadius: 32, marginRight: 16 }} />
                     <View style={{ flex: 1, marginRight: 8 }}>
                         <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{assessment?.owner_details?.owner || '—'}</Text>
-                        <Text numberOfLines={2} style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>{assessment?.owner_details?.address || '—'}</Text>
+                        <Text numberOfLines={4} style={{ fontSize: 12, color: '#6b7280', marginTop: 4, lineHeight: 16 }}>{addressCascade}</Text>
                     </View>
                 </View>
 

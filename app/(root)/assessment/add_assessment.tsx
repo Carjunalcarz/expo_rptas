@@ -3,10 +3,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, TouchableOpacity, Alert, View, Modal, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncPending, saveAssessment, updateAssessment, getAssessmentById } from '../../../lib/local-db';
-import { SYNC_API_URL } from '../../../constants/sync';
+import { syncPendingToAppwrite, getCurrentUser } from '../../../lib/appwrite';
 import { useEffect } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useForm, FormProvider } from "react-hook-form";
 import OwnerDetailsForm from "../../../components/OwnerDetailsForm";
 import BuildingLocationForm from "../../../components/BuildingLocationForm";
@@ -66,6 +66,26 @@ const AddAssessment: React.FC = () => {
     const showPreview = () => { setPreviewData(getValues()); setPreviewVisible(true); };
     const cancelPreview = () => { setPreviewVisible(false); };
     const confirmSave = () => { setPreviewVisible(false); handleSubmit(onSubmit)(); };
+    const handleSync = async () => {
+        Alert.alert('Sync Pending', 'Start syncing pending assessments to Appwrite?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'OK',
+                onPress: async () => {
+                    try {
+                        const u = await getCurrentUser();
+                        const results = await syncPendingToAppwrite({ userId: u?.$id });
+                        const ok = results.filter((r) => r.ok).length;
+                        const fail = results.length - ok;
+                        Alert.alert('Sync complete', fail > 0 ? `Synced ${ok}, ${fail} failed.` : `Synced ${ok} item(s).`);
+                    } catch (err: any) {
+                        console.error('Sync failed', err);
+                        Alert.alert('Sync failed', err?.message || 'An error occurred during sync');
+                    }
+                }
+            }
+        ]);
+    };
     const onSubmit = async (data: AssessmentFormData) => {
         try {
             if (isEdit && lastMeta?.local_id) {
@@ -145,16 +165,10 @@ const AddAssessment: React.FC = () => {
             <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 24 }}>
                 <View style={{ flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                     <TouchableOpacity onPress={() => { Alert.alert('Clear Form', 'Reset all fields to default?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => clearForm() }]); }} accessibilityLabel="Clear form" style={{ backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4, borderWidth: 1, borderColor: PRIMARY_COLOR, marginBottom: 12 }}>
-                        <Icon name="clear" size={22} color={PRIMARY_COLOR} />
+                        <MaterialIcons name="clear" size={22} color={PRIMARY_COLOR} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { Alert.alert('Fill Dummy Data', 'Fill form with dummy data?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => fillDummyData() }]); }} accessibilityLabel="Fill dummy data" style={{ backgroundColor: PRIMARY_COLOR, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4 }}>
-                        <Icon name="filter-alt" size={22} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={async () => {
-                        if (!SYNC_API_URL) { Alert.alert('No Sync URL', 'Please configure SYNC_API_URL in constants/sync.ts before syncing.'); return; }
-                        Alert.alert('Sync Pending', 'Start syncing pending assessments to server?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: async () => { try { await syncPending(SYNC_API_URL); Alert.alert('Sync complete', 'Pending assessments have been synced.'); } catch (err: any) { console.error('Sync failed', err); Alert.alert('Sync failed', err?.message || 'An error occurred during sync'); } } }]);
-                    }} accessibilityLabel="Sync pending assessments" style={{ backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4, borderWidth: 1, borderColor: PRIMARY_COLOR, marginTop: 12 }}>
-                        <Icon name="sync" size={22} color={PRIMARY_COLOR} />
+                        <MaterialIcons name="filter-alt" size={22} color="#fff" />
                     </TouchableOpacity>
                 </View>
             </View>

@@ -130,6 +130,71 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## 📦 Appwrite database setup
+
+This project includes a provisioning script to create the required Appwrite database schema for assessments, plus related Owners and Locations.
+
+1) Prepare credentials (PowerShell)
+
+```powershell
+$env:APPWRITE_ENDPOINT="https://cloud.appwrite.io/v1"
+$env:APPWRITE_PROJECT_ID="<your_project_id>"
+$env:APPWRITE_API_KEY="<your_server_api_key>"
+```
+
+2) Run the setup
+
+```powershell
+npm run appwrite:setup
+```
+
+The script will create:
+- Database: RPTAS (or use existing APPWRITE_DATABASE_ID)
+- Collections:
+  - assessments (main records with flattened searchable fields + JSON blocks)
+  - owners (name, address, tin, telNo, etc.)
+  - locations (street, barangay, municipality, province)
+
+It prints the created IDs; add these to your EAS environment variables so builds can access them:
+- EXPO_PUBLIC_APPWRITE_DATABASE_ID
+- EXPO_PUBLIC_APPWRITE_ASSESSMENTS_COLLECTION_ID
+- EXPO_PUBLIC_APPWRITE_OWNERS_COLLECTION_ID
+- EXPO_PUBLIC_APPWRITE_LOCATIONS_COLLECTION_ID
+
+3) What data is stored in assessments
+- Flattened fields: ownerName, transactionCode, tdArp, pin, barangay, municipality, province, marketValueTotal, taxable, effYear, effQuarter, totalArea, additionalItem, clientLocalId, createdAt, updatedAt, userId, synced
+- JSON blocks (exact form shape): owner_details, building_location, land_reference, general_description, structural_materials, property_appraisal, property_assessment, additionalItems
+- Relationship ids: ownerRefId, locationRefId (string IDs; the script also attempts native relationships if supported)
+
+4) Programmatic usage
+- Use `createAssessmentDocument({ data, clientLocalId?, createdAt?, userId? })` to create a record from your form object.
+- Use `syncPendingToAppwrite()` to push offline-saved assessments from the local DB to Appwrite and mark them as synced.
+
+### 🔗 Relationships (Owners and Locations)
+
+The setup script also provisions two related collections and links them from `assessments`:
+
+- owners: normalized owner info; indexed by `name` and `tin`.
+- locations: normalized address; indexed by `municipality, barangay`.
+- assessments: always includes string id fields `ownerRefId` and `locationRefId`. If your Appwrite version supports relationship attributes, the script also attempts to create native relationship attributes (`ownerRef`, `locationRef`).
+
+Client behavior
+- `createAssessmentDocument` upserts the Owner and Location (simple match by name+TIN and by full address) and sets `ownerRefId` and `locationRefId` on the new assessment.
+- If native relationship attributes exist, you may optionally extend the client to also set `ownerRef` and `locationRef` using the same IDs. The current client uses the portable `ownerRefId`/`locationRefId` fields, which work across Appwrite versions.
+
+Verify in Appwrite Console
+- Database → your database → collections:
+  - `owners` has attributes: `name` (required), `address`, `tin`, `telNo`, `hasAdministratorBeneficiary`, `administratorBeneficiary` (JSON/string).
+  - `locations` has attributes: `street`, `barangay`, `municipality`, `province`.
+  - `assessments` has: `ownerRefId`, `locationRefId` and your flattened/JSON attributes; if supported, `ownerRef` and `locationRef` appear as relationship attributes.
+
+Re-running the script
+- The setup is idempotent: if attributes/indexes/collections exist, it will skip or reuse them. You can safely re-run after upgrading Appwrite to add relationships.
+
+Notes
+- If your Appwrite instance doesn’t support JSON attributes, the setup script falls back to string attributes and the client still stores the same JSON content (serialized).
+- Do not put API keys in client code; use server (setup) or environment variables with `EXPO_PUBLIC_` only for non-secret values.
+
 ## <a name="snippets">🕸️ Snippets</a>
 
 <details>

@@ -25,4 +25,16 @@ export function navigateToEditAssessment(id: number | string) {
   pushPath({ pathname: '/(root)/assessment/edit/[id]', params: { id: String(id) } });
 }
 
-export default { pushPath, navigateToAssessment, navigateToAddAssessment, navigateToEditAssessment };
+export function navigateToRemoteAssessments() {
+  pushPath({ pathname: '/(root)/assessment/remote' });
+}
+
+export function navigateToRemoteAssessment(id: string) {
+  pushPath({ pathname: '/(root)/assessment/remote/[id]', params: { id } });
+}
+
+export function navigateToEditRemoteAssessment(id: string) {
+  pushPath({ pathname: '/(root)/assessment/remote/edit/[id]', params: { id } });
+}
+
+export default { pushPath, navigateToAssessment, navigateToAddAssessment, navigateToEditAssessment, navigateToRemoteAssessments, navigateToRemoteAssessment, navigateToEditRemoteAssessment };

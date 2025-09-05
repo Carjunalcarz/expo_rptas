@@ -9,20 +9,20 @@ import {
   Button,
 } from "react-native";
 import { useEffect, useState } from "react";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 
 import icons from "@/constants/icons";
 import images from "@/constants/images";
 import Search from "@/components/Search";
-import Filters from "@/components/Filters";
 import NoResults from "@/components/NoResults";
 import { Card, FeaturedCard } from "@/components/Cards";
 
 import { useAppwrite } from "@/lib/useAppwrite";
 import { useGlobalContext } from "@/lib/global-provider";
-import { getLatestProperties, getProperties } from "@/lib/appwrite";
+import { listAssessmentDocuments } from "@/lib/appwrite";
+import { navigateToRemoteAssessment, navigateToRemoteAssessments } from "@/lib/navigation";
 import seed from "@/lib/seed";
 
 const Home = () => {
@@ -33,34 +33,10 @@ const Home = () => {
     longitude: number;
   } | null>(null);
 
-  const params = useLocalSearchParams<{ query?: string; filter?: string }>();
-
-  const { data: latestProperties, loading: latestPropertiesLoading } =
+  const { data: latestAssessments, loading: latestAssessmentsLoading } =
     useAppwrite({
-      fn: getLatestProperties,
+      fn: listAssessmentDocuments,
     });
-
-  const {
-    data: properties,
-    refetch,
-    loading,
-  } = useAppwrite({
-    fn: getProperties,
-    params: {
-      filter: params.filter!,
-      query: params.query!,
-      limit: 6,
-    },
-    skip: true,
-  });
-
-  useEffect(() => {
-    refetch({
-      filter: params.filter!,
-      query: params.query!,
-      limit: 6,
-    });
-  }, [params.filter, params.query]);
 
   useEffect(() => {
     getCurrentLocation();
@@ -107,7 +83,7 @@ const Home = () => {
     }
   };
 
-  const handleCardPress = (id: string) => router.push(`/properties/${id}`);
+  // No property grid; Home focuses on remote assessments sections
 
   const openGoogleMaps = () => {
     if (coordinates) {
@@ -120,22 +96,11 @@ const Home = () => {
     <SafeAreaView className="h-full bg-white">
       {/* |<Button  title="Seed" onPress={seed} /> */}
       <FlatList
-        data={properties}
-        numColumns={2}
-        renderItem={({ item }) => (
-          <Card item={item} onPress={() => handleCardPress(item.$id)} />
-        )}
-        keyExtractor={(item) => item.$id}
+        data={[]}
+        renderItem={() => null}
+        keyExtractor={(item, index) => String(index)}
         contentContainerClassName="pb-32"
-        columnWrapperClassName="flex gap-5 px-5"
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator size="large" className="text-primary-300 mt-5" />
-          ) : (
-            <NoResults />
-          )
-        }
         ListHeaderComponent={() => (
           <View className="px-5">
             <View className="flex flex-row items-center justify-between mt-5">
@@ -176,32 +141,65 @@ const Home = () => {
             <View className="my-5">
               <View className="flex flex-row items-center justify-between">
                 <Text className="text-xl font-rubik-bold text-black-300">
-                  Featured
+                  Remote Assessments
                 </Text>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={navigateToRemoteAssessments}>
                   <Text className="text-base font-rubik-bold text-primary-300">
                     See all
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {latestPropertiesLoading ? (
+              {latestAssessmentsLoading ? (
                 <ActivityIndicator size="large" className="text-primary-300" />
-              ) : !latestProperties || latestProperties.length === 0 ? (
+              ) : !latestAssessments || latestAssessments.length === 0 ? (
                 <NoResults />
               ) : (
                 <FlatList
-                  data={latestProperties}
-                  renderItem={({ item }) => (
-                    <FeaturedCard
-                      item={item}
-                      onPress={() => handleCardPress(item.$id)}
-                    />
-                  )}
-                  keyExtractor={(item) => item.$id}
+                  data={latestAssessments.slice(0, 10)}
+                  renderItem={({ item }: { item: any }) => {
+                    let loc: any = {};
+                    let owner: any = {};
+                    try {
+                      loc = JSON.parse(item.building_location || '{}');
+                    } catch { }
+                    try {
+                      owner = JSON.parse(item.owner_details || '{}');
+                    } catch { }
+                    const pickUri = (x: any): string | undefined => {
+                      if (!x) return undefined;
+                      if (typeof x === 'string') return x;
+                      if (typeof x === 'object') return x.uri || x.url || x.image || x.src;
+                      return undefined;
+                    };
+                    let img: string | undefined;
+                    if (Array.isArray(loc?.buildingImages)) {
+                      for (const it of loc.buildingImages) { const u = pickUri(it); if (u) { img = u; break; } }
+                    }
+                    if (!img && Array.isArray(loc?.images)) {
+                      for (const it of loc.images) { const u = pickUri(it); if (u) { img = u; break; } }
+                    }
+                    if (!img) img = pickUri(loc?.image);
+                    const address = [loc?.street, loc?.barangay, loc?.municipality, loc?.province].filter(Boolean).join(', ');
+                    return (
+                      <TouchableOpacity
+                        onPress={() => navigateToRemoteAssessment(item.$id)}
+                        className="w-64 mr-5"
+                      >
+                        <Image source={img ? { uri: img } : images.noResult} className="w-64 h-40 rounded-2xl" resizeMode="cover" />
+                        <View className="mt-2">
+                          <Text className="text-base font-rubik-medium text-gray-800" numberOfLines={1}>{owner?.owner || item.ownerName || item.$id}</Text>
+                          {address ? (
+                            <Text className="text-xs text-gray-500 mt-1" numberOfLines={1}>{address}</Text>
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  keyExtractor={(it: any) => it.$id}
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerClassName="flex gap-5 mt-5"
+                  contentContainerClassName="flex mt-5"
                 />
               )}
             </View>
@@ -211,16 +209,53 @@ const Home = () => {
             <View className="mt-5">
               <View className="flex flex-row items-center justify-between">
                 <Text className="text-xl font-rubik-bold text-black-300">
-                  Our Recommendation
+                  Recent Activity
                 </Text>
-                <TouchableOpacity>
-                  <Text className="text-base font-rubik-bold text-primary-300">
-                    See all
-                  </Text>
-                </TouchableOpacity>
               </View>
 
-              <Filters />
+              {latestAssessmentsLoading ? (
+                <ActivityIndicator size="large" className="text-primary-300 mt-4" />
+              ) : !latestAssessments || latestAssessments.length === 0 ? (
+                <NoResults />
+              ) : (
+                <View className="mt-3">
+                  {latestAssessments.slice(0, 5).map((item: any) => {
+                    let loc: any = {};
+                    let owner: any = {};
+                    try { loc = JSON.parse(item.building_location || '{}'); } catch { }
+                    try { owner = JSON.parse(item.owner_details || '{}'); } catch { }
+                    const pickUri = (x: any): string | undefined => {
+                      if (!x) return undefined; if (typeof x === 'string') return x; if (typeof x === 'object') return x.uri || x.url || x.image || x.src; return undefined;
+                    };
+                    let img: string | undefined;
+                    if (Array.isArray(loc?.buildingImages)) {
+                      for (const it of loc.buildingImages) { const u = pickUri(it); if (u) { img = u; break; } }
+                    }
+                    if (!img && Array.isArray(loc?.images)) {
+                      for (const it of loc.images) { const u = pickUri(it); if (u) { img = u; break; } }
+                    }
+                    if (!img) img = pickUri(loc?.image);
+                    const address = [loc?.street, loc?.barangay, loc?.municipality, loc?.province].filter(Boolean).join(', ');
+                    return (
+                      <TouchableOpacity
+                        key={item.$id}
+                        onPress={() => navigateToRemoteAssessment(item.$id)}
+                        className="flex-row items-center py-3"
+                      >
+                        <Image source={img ? { uri: img } : images.noResult} className="w-12 h-12 rounded-lg mr-3" resizeMode="cover" />
+                        <View className="flex-1">
+                          <Text className="text-sm font-rubik-medium text-gray-800" numberOfLines={1}>{owner?.owner || item.ownerName || item.$id}</Text>
+                          {address ? (
+                            <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={1}>{address}</Text>
+                          ) : null}
+                          <Text className="text-[10px] text-gray-400 mt-0.5">{new Date(item.$createdAt).toLocaleString()}</Text>
+                        </View>
+                        <Image source={icons.rightArrow} className="w-4 h-4 opacity-60" />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </View>
         )}
