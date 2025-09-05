@@ -1,0 +1,91 @@
+import { ID, Permission, Role, Databases, Storage, Account, Client } from 'appwrite';
+import { config, isConfigured } from './appwrite_config';
+import { databases, storage } from './Global/store';
+
+// ... (keep all existing functions up to uploadBuildingImages)
+
+// Sync with simple progress callbacks
+export async function syncWithProgress(
+  offlineData: {
+    street?: string;
+    barangay?: string;
+    municipality?: string;
+    province?: string;
+    buildingImages: string[];
+  },
+  onProgress?: (p: { stage: string; current?: number; total?: number; message?: string }) => void
+): Promise<any> {
+  if (!isConfigured) {
+    throw new Error('Appwrite not configured');
+  }
+
+  try {
+    await ensureSession();
+    const paths = offlineData.buildingImages || [];
+    const total = paths.length;
+
+    if (total === 0) {
+      onProgress?.({ 
+        stage: 'warning', 
+        message: 'No images to upload' 
+      });
+      return null;
+    }
+
+    onProgress?.({ 
+      stage: 'uploading_images', 
+      current: 0, 
+      total, 
+      message: 'Starting image uploads...' 
+    });
+
+    const uploadResults = await uploadBuildingImages(paths, onProgress);
+    const successfulUploads = uploadResults.uploadStatus.filter(status => status).length;
+
+    if (successfulUploads === 0) {
+      throw new Error('Failed to upload any images');
+    }
+
+    onProgress?.({ 
+      stage: 'saving_database', 
+      message: 'Saving data to database...' 
+    });
+
+    const successfulUrls = uploadResults.urls.filter((_, i) => uploadResults.uploadStatus[i]);
+    const data = {
+      owner_details: {},
+      building_location: {
+        street: offlineData.street,
+        barangay: offlineData.barangay,
+        municipality: offlineData.municipality,
+        province: offlineData.province,
+        buildingImages: successfulUrls,
+        localBuildingImages: uploadResults.localUris
+      },
+      land_reference: {},
+      general_description: {},
+      structural_materials: {},
+      property_appraisal: {},
+      property_assessment: {},
+      additionalItems: { items: [], subTotal: 0, total: 0 }
+    };
+
+    const result = await createAssessmentDocument({ data });
+    
+    onProgress?.({ 
+      stage: 'complete', 
+      message: 'Successfully uploaded images and saved data' 
+    });
+    
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    onProgress?.({ 
+      stage: 'error', 
+      message: `Sync failed: ${errorMessage}` 
+    });
+    throw error;
+  }
+}
+
+// ... (keep all functions after syncWithProgress)
