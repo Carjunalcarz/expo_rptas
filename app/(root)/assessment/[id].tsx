@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import images from '@/constants/images';
 import { getAssessmentById, deleteAssessment, getAllAssessments } from '@/lib/local-db';
-import { getAssessmentDocument } from '@/lib/appwrite';
+import { getAssessmentDocument, deleteAssessmentDocument } from '@/lib/appwrite';
 import { parseAssessmentData } from '@/lib/parser';
 import { getRouter } from '@/lib/router';
 import { FormProvider, useForm } from 'react-hook-form';
@@ -14,25 +14,42 @@ import OwnerCard from './components/OwnerCard';
 import Tabs from './components/Tabs';
 import Sections from './components/Sections';
 
+// TypeScript interfaces for type safety
+interface AdministratorBeneficiaryData { name: string; address: string; tin: string; telNo: string; }
+interface OwnerDetailsData { owner: string; address: string; tin: string; telNo: string; hasAdministratorBeneficiary: boolean; administratorBeneficiary?: AdministratorBeneficiaryData; transactionCode?: string; tdArp?: string; pin?: string; }
+interface BuildingLocationData { street: string; barangay: string; municipality: string; province: string; latitude?: string; longitude?: string; buildingImages?: string[]; }
+interface LandReferenceData { owner: string; titleNumber: string; lotNumber: string; blockNumber: string; surveyNumber: string; tdnArpNumber: string; area: string; }
+interface FloorArea { id: string; floorNumber: string; area: string; }
+interface GeneralFormData { kindOfBuilding: string; structuralType: string; buildingPermitNo: string; condominiumCCT: string; completionCertificateDate: string; occupancyCertificateDate: string; dateConstructed: string; dateOccupied: string; buildingAge: string; numberOfStoreys: string; floorAreas: FloorArea[]; totalFloorArea: string; floorPlanImages: string[]; }
+interface FloorMaterial { id: string; floorName: string; material: string; otherSpecify: string; }
+interface WallPartition { id: string; wallName: string; material: string; otherSpecify: string; }
+interface StructuralFormData { foundation: { reinforceConcrete: boolean; plainConcrete: boolean; others: boolean; othersSpecify: string; }; columns: { steel: boolean; reinforceConcrete: boolean; wood: boolean; others: boolean; othersSpecify: string; }; beams: { steel: boolean; reinforceConcrete: boolean; others: boolean; othersSpecify: string; }; trussFraming: { steel: boolean; wood: boolean; others: boolean; othersSpecify: string; }; roof: { reinforceConcrete: boolean; tiles: boolean; giSheet: boolean; aluminum: boolean; asbestos: boolean; longSpan: boolean; concreteDesk: boolean; nipaAnahawCogon: boolean; others: boolean; othersSpecify: string; }; flooring: FloorMaterial[]; wallsPartitions: WallPartition[]; }
+interface PropertyAssessmentData { id: number | string; market_value: number | string; building_category: string; assessment_level: string; assessment_value: number | string; taxable: number | string; eff_year: string; eff_quarter: string; total_area: string; }
+interface Description { kindOfBuilding: string; structuralType: string; }
+interface PropertyAppraisalData { description: Description[]; area: string; unit_value: string; bucc: string; baseMarketValue: string; depreciation: string; depreciationCost: string; marketValue: string; }
+interface AssessmentFormData { owner_details: OwnerDetailsData; building_location: BuildingLocationData; land_reference: LandReferenceData; general_description: GeneralFormData; structural_materials?: StructuralFormData; property_appraisal?: PropertyAppraisalData; property_assessment?: PropertyAssessmentData; additionalItems?: any; additionalItem?: string; }
+interface AssessmentMeta { local_id?: number; remote_id?: string | null; created_at?: string; synced?: boolean; }
+
 
 const windowHeight = Dimensions.get('window').height;
 const windowWidth = Dimensions.get('window').width;
 
 const AssessmentDetail: React.FC = () => {
     const { id } = useLocalSearchParams<{ id?: string }>();
-    const [assessment, setAssessment] = React.useState<any | null>(null);
-    const [meta, setMeta] = React.useState<any | null>(null);
+    const [assessment, setAssessment] = React.useState<AssessmentFormData | null>(null);
+    const [meta, setMeta] = React.useState<AssessmentMeta | null>(null);
     const [activeTab, setActiveTab] = React.useState('overview');
     const [loading, setLoading] = React.useState(true);
     const [notFound, setNotFound] = React.useState(false);
+    const [refetching, setRefetching] = React.useState(false);
 
     React.useEffect(() => {
         let mounted = true;
         (async () => {
             try {
                 if (!id) { setNotFound(true); return; }
-                let assessmentData: any | null = null;
-                let metaData: any | null = null;
+                let assessmentData: AssessmentFormData | null = null;
+                let metaData: AssessmentMeta | null = null;
 
                 // Try to load from local DB first
                 const numericId = Number(id);
@@ -72,6 +89,31 @@ const AssessmentDetail: React.FC = () => {
         })();
         return () => { mounted = false; };
     }, [id]);
+
+    const refetchRemoteAssessment = async () => {
+        if (!id || !meta?.remote_id) {
+            Alert.alert('Error', 'Cannot refetch: No remote ID available');
+            return;
+        }
+
+        setRefetching(true);
+        try {
+            const remoteDoc = await getAssessmentDocument(meta.remote_id);
+            if (remoteDoc) {
+                const parsedData = parseAssessmentData(remoteDoc);
+                setAssessment(parsedData);
+                setMeta({ ...meta, created_at: remoteDoc.$createdAt });
+                Alert.alert('Success', 'Assessment data refreshed from remote');
+            } else {
+                Alert.alert('Error', 'Assessment not found on remote server');
+            }
+        } catch (error) {
+            console.error('Failed to refetch remote assessment:', error);
+            Alert.alert('Error', 'Failed to refresh assessment data');
+        } finally {
+            setRefetching(false);
+        }
+    };
 
     const methods = useForm({
         defaultValues: assessment || {},
@@ -136,22 +178,45 @@ const AssessmentDetail: React.FC = () => {
 
     const handleDeleteRecord = async () => {
         try {
-            if (!meta?.local_id) {
-                console.warn('no local id to delete');
-                return;
+            // Handle both local and remote assessments
+            if (meta?.local_id) {
+                // Local assessment deletion
+                Alert.alert('Delete assessment', 'Are you sure you want to delete this local assessment? This cannot be undone.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Delete', style: 'destructive', onPress: async () => {
+                            try {
+                                await deleteAssessment(meta.local_id!);
+                                getRouter()?.back();
+                            } catch (err) {
+                                Alert.alert('Error', 'Failed to delete local assessment');
+                                console.warn('delete error', err);
+                            }
+                        }
+                    },
+                ]);
+            } else if (meta?.remote_id) {
+                // Remote assessment deletion
+                Alert.alert('Delete assessment', 'This will permanently delete the remote assessment. This cannot be undone.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Delete', style: 'destructive', onPress: async () => {
+                            try {
+                                await deleteAssessmentDocument(meta.remote_id!);
+                                getRouter()?.back();
+                            } catch (err: any) {
+                                Alert.alert('Error', err?.message || 'Failed to delete remote assessment');
+                                console.warn('delete error', err);
+                            }
+                        }
+                    },
+                ]);
+            } else {
+                Alert.alert('Error', 'Cannot delete: No valid assessment ID found');
             }
-            // confirmation
-            Alert.alert('Delete assessment', 'Are you sure you want to delete this assessment? This cannot be undone.', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete', style: 'destructive', onPress: async () => {
-                        await deleteAssessment(meta.local_id);
-                        getRouter()?.back();
-                    }
-                },
-            ]);
         } catch (err) {
             console.warn('delete error', err);
+            Alert.alert('Error', 'An unexpected error occurred');
         }
     };
 
@@ -204,22 +269,67 @@ const AssessmentDetail: React.FC = () => {
                             </View>
                         </View>
                     </View>
-                </ScrollView>
+                    {/* Action buttons section - now part of scrollable content */}
+                    <View style={{ backgroundColor: 'white', padding: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', marginTop: 20 }}>
+                        <View style={{ flexDirection: 'column', gap: 16 }}>
+                            <View style={{ alignItems: 'center' }}>
+                                <Text style={{ fontSize: 12, color: '#6b7280' }}>Total Assessment</Text>
+                                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#2563eb' }}>
+                                    {assessment?.property_assessment?.market_value ? formatPHP(Number(assessment.property_assessment.assessment_value)) : '-'}
+                                </Text>
+                            </View>
 
-                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'white', padding: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <View>
-                            <Text style={{ fontSize: 12, color: '#6b7280' }}>Total Assessment</Text>
-                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2563eb' }}>
-                                {assessment?.property_assessment?.market_value ? formatPHP(assessment.property_assessment.assessment_value) : '-'}
-                            </Text>
+                            <View style={{ flexDirection: 'column', gap: 12 }}>
+                                {meta?.remote_id && (
+                                    <TouchableOpacity
+                                        onPress={refetchRemoteAssessment}
+                                        disabled={refetching}
+                                        style={{
+                                            backgroundColor: refetching ? '#9ca3af' : '#10b981',
+                                            paddingVertical: 16,
+                                            paddingHorizontal: 24,
+                                            borderRadius: 12,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.2,
+                                            shadowRadius: 4,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            minHeight: 56
+                                        }}
+                                    >
+                                        {refetching ? (
+                                            <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 12 }} />
+                                        ) : (
+                                            <Icon name="refresh" size={22} color="#FFF" style={{ marginRight: 12 }} />
+                                        )}
+                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                                            {refetching ? 'Refreshing Data...' : 'Refresh from Server'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={{
+                                    backgroundColor: '#3b82f6',
+                                    paddingVertical: 16,
+                                    paddingHorizontal: 24,
+                                    borderRadius: 12,
+                                    shadowColor: '#000',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.2,
+                                    shadowRadius: 4,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minHeight: 56
+                                }}>
+                                    <Icon name="payment" size={22} color="#FFF" style={{ marginRight: 12 }} />
+                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Pay Now</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        <TouchableOpacity style={{ backgroundColor: '#3b82f6', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 9999, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2, flexDirection: 'row', alignItems: 'center' }}>
-                            <Icon name="share" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                            <Text style={{ color: 'white', fontWeight: 'bold' }}>Pay Now</Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
+                </ScrollView>
             </View>
         </FormProvider>
     );

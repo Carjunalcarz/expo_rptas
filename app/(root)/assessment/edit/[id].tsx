@@ -5,12 +5,11 @@ import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { FormProvider, useForm } from 'react-hook-form';
-import { getAssessmentById, updateAssessment, saveAssessment } from '../../../../lib/local-db';
-import { getAssessmentDocument } from '../../../../lib/appwrite';
-import { parseAssessmentData } from '../../../../lib/parser';
-import { PRIMARY_COLOR } from '../../../../constants/colors';
-
-// Reuse existing form sections
+import { saveAssessment, updateAssessment, getAssessmentById, getSyncMetadata, storeSyncMetadata } from '@/lib/local-db';
+import { getAssessmentDocument, updateAssessmentDocument } from '@/lib/appwrite';
+import { parseAssessmentData } from '@/lib/parser';
+import { PRIMARY_COLOR } from '@/constants/colors';
+import { Alert } from 'react-native';
 import OwnerDetailsForm from '../../../../components/OwnerDetailsForm';
 import BuildingLocationForm from '../../../../components/BuildingLocationForm';
 import LandReferenceForm from '../../../../components/LandReferenceForm';
@@ -27,10 +26,12 @@ export default function EditAssessmentScreen() {
     const methods = useForm<AssessmentFormData>({ defaultValues: {} as any });
     const { reset, handleSubmit, getValues } = methods;
     const [loading, setLoading] = React.useState(true);
+    const [saving, setSaving] = React.useState(false);
     const [assessmentData, setAssessmentData] = React.useState<AssessmentFormData | null>(null);
     const [previewVisible, setPreviewVisible] = React.useState(false);
     const [previewData, setPreviewData] = React.useState<any | null>(null);
     const [remoteDataVisible, setRemoteDataVisible] = React.useState(false);
+    const [syncMetadata, setSyncMetadata] = React.useState<any>(null);
 
     React.useEffect(() => {
         const loadAssessment = async () => {
@@ -41,7 +42,7 @@ export default function EditAssessmentScreen() {
                 if (lastAssessmentJSON) {
                     const lastAssessment = JSON.parse(lastAssessmentJSON);
                     const storedId = String(lastAssessment.local_id || lastAssessment.remote_id);
-                    if (storedId === String(id) && lastAssessment.data) {
+                    if (storedId === id) {
                         dataToLoad = lastAssessment.data;
                     }
                 }
@@ -49,14 +50,29 @@ export default function EditAssessmentScreen() {
                 if (!dataToLoad && id) {
                     const isRemote = Number.isNaN(Number(id));
                     if (isRemote) {
+                        // Fetch from Appwrite
                         const remoteDoc = await getAssessmentDocument(id);
                         if (remoteDoc) {
                             dataToLoad = parseAssessmentData(remoteDoc);
                         }
                     } else {
-                        const numericId = Number(id);
-                        const row = await getAssessmentById(numericId);
-                        if (row) dataToLoad = row.data;
+                        // Check if this local assessment was synced and deleted
+                        const localId = Number(id);
+                        const syncMeta = await getSyncMetadata(localId);
+                        if (syncMeta?.remoteId) {
+                            // Local was synced and deleted, redirect to remote version
+                            setSyncMetadata(syncMeta);
+                            const remoteDoc = await getAssessmentDocument(syncMeta.remoteId);
+                            if (remoteDoc) {
+                                dataToLoad = parseAssessmentData(remoteDoc);
+                            }
+                        } else {
+                            // Fetch from local DB
+                            const localRecord = await getAssessmentById(localId);
+                            if (localRecord) {
+                                dataToLoad = localRecord.data;
+                            }
+                        }
                     }
                 }
                 // Normalize property_appraisal so the table renders at least one row
@@ -129,26 +145,108 @@ export default function EditAssessmentScreen() {
     }, [assessmentData, reset]);
 
     const onSubmit = async (data: AssessmentFormData) => {
+        if (saving) return; // Prevent double submission
+        
+        setSaving(true);
         try {
-            let newLocalId = NaN;
-            // If we are editing a pre-existing local record, update it.
             const isRemote = id ? Number.isNaN(Number(id)) : false;
-            if (!isRemote && id) {
+            
+            if (isRemote && id) {
+                // Editing a remote record - update it directly on Appwrite
+                try {
+                    await updateAssessmentDocument(id, { data });
+                    Alert.alert('Success', 'Remote assessment updated successfully!', [
+                        { text: 'OK', onPress: () => {
+                            const r = require('expo-router');
+                            r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id } });
+                        }}
+                    ]);
+                } catch (remoteError: any) {
+                    console.warn('Remote update failed, saving locally instead:', remoteError);
+                    // Fallback: save as new local record
+                    const newLocalId = await saveAssessment({ createdAt: new Date().toISOString(), data });
+                    await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
+                        local_id: newLocalId, 
+                        createdAt: new Date().toISOString(), 
+                        data,
+                        remote_id: id,
+                        synced: false 
+                    }));
+                    Alert.alert('Saved Locally', 'Could not update remote record, saved changes locally instead.', [
+                        { text: 'OK', onPress: () => {
+                            const r = require('expo-router');
+                            r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(newLocalId) } });
+                        }}
+                    ]);
+                }
+            } else if (!isRemote && id) {
+                // Check if this local assessment was synced (has sync metadata)
                 const localIdNumber = Number(id);
-                await updateAssessment(localIdNumber, data);
-                newLocalId = localIdNumber;
+                const syncMeta = syncMetadata || await getSyncMetadata(localIdNumber);
+                
+                if (syncMeta?.remoteId) {
+                    // This local assessment was synced and deleted, edit the remote version instead
+                    try {
+                        await updateAssessmentDocument(syncMeta.remoteId, { data });
+                        Alert.alert('Success', 'Remote assessment updated successfully!', [
+                            { text: 'OK', onPress: () => {
+                                const r = require('expo-router');
+                                r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: syncMeta.remoteId } });
+                            }}
+                        ]);
+                    } catch (remoteError: any) {
+                        console.warn('Remote update failed, saving as new local instead:', remoteError);
+                        // Fallback: save as new local record
+                        const newLocalId = await saveAssessment({ createdAt: new Date().toISOString(), data });
+                        await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
+                            local_id: newLocalId, 
+                            createdAt: new Date().toISOString(), 
+                            data 
+                        }));
+                        Alert.alert('Saved Locally', 'Could not update remote record, saved as new local assessment instead.', [
+                            { text: 'OK', onPress: () => {
+                                const r = require('expo-router');
+                                r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(newLocalId) } });
+                            }}
+                        ]);
+                    }
+                } else {
+                    // Regular local record - update it locally
+                    await updateAssessment(localIdNumber, data);
+                    await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
+                        local_id: localIdNumber, 
+                        createdAt: new Date().toISOString(), 
+                        data 
+                    }));
+                    Alert.alert('Success', 'Assessment updated successfully!', [
+                        { text: 'OK', onPress: () => {
+                            const r = require('expo-router');
+                            r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(localIdNumber) } });
+                        }}
+                    ]);
+                }
             } else {
-                // If we are "editing" a remote record, we save it as a new local record.
+                // Creating a new record
                 const newLocalId = await saveAssessment({ createdAt: new Date().toISOString(), data });
+                await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
+                    local_id: newLocalId, 
+                    createdAt: new Date().toISOString(), 
+                    data 
+                }));
+                Alert.alert('Success', 'Assessment saved successfully!', [
+                    { text: 'OK', onPress: () => {
+                        const r = require('expo-router');
+                        r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(newLocalId) } });
+                    }}
+                ]);
             }
-
-            if (Number.isNaN(newLocalId)) return;
-
-            await AsyncStorage.setItem('last_assessment', JSON.stringify({ local_id: newLocalId, createdAt: new Date().toISOString(), data }));
-            const r = require('expo-router');
-            r?.router?.replace?.({ pathname: '/assessment/[id]', params: { id: String(newLocalId) } });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to save assessment', err);
+            Alert.alert('Error', `Failed to save assessment: ${err?.message || 'Unknown error'}`, [
+                { text: 'OK' }
+            ]);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -178,8 +276,20 @@ export default function EditAssessmentScreen() {
                     <AdditionalItems />
                     <PropertyAssessment />
                 </FormProvider>
-                <TouchableOpacity onPress={showPreview} style={{ backgroundColor: PRIMARY_COLOR, padding: 12, borderRadius: 8, marginTop: 16 }}>
-                    <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: '700', fontSize: 18 }}>Save Changes</Text>
+                <TouchableOpacity 
+                    onPress={showPreview} 
+                    disabled={saving}
+                    style={{ 
+                        backgroundColor: saving ? '#9ca3af' : PRIMARY_COLOR, 
+                        padding: 12, 
+                        borderRadius: 8, 
+                        marginTop: 16,
+                        opacity: saving ? 0.7 : 1
+                    }}
+                >
+                    <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: '700', fontSize: 18 }}>
+                        {saving ? 'Saving...' : 'Save Changes'}
+                    </Text>
                 </TouchableOpacity>
             </ScrollView>
 

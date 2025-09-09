@@ -58,7 +58,7 @@ const TabsLayout = () => {
         options={{
           title: "Remote",
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} icon={icons.search} title="Remote" />
+            <TabIcon focused={focused} icon={icons.shield} title="Synced" />
           ),
         }}
       />

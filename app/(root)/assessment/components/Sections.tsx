@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, FlatList, TouchableOpacity, Modal, Dimensions, ScrollView } from 'react-native';
+import { View, Text, Image, FlatList, TouchableOpacity, Modal, Dimensions, ScrollView, Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useFormContext } from 'react-hook-form';
 import images from '@/constants/images';
@@ -20,36 +20,130 @@ function renderMaterialCheckboxList(obj?: Record<string, any>) {
     );
 }
 
-function renderAppraisalTable(app: any) {
+function renderAppraisalTable(assessment: any) {
+    const app = assessment?.property_appraisal;
     if (!app) return <Text style={{ fontSize: 14, color: '#374156' }}>No appraisal data</Text>;
-    const rows = Array.isArray(app) ? app : (app.description ? (Array.isArray(app.description) ? app.description : [app.description]) : []);
+
+    // Handle both property_appraisal structure and direct data
+    const description = app.description || [];
+    const buildingInfo = Array.isArray(description) && description.length > 0 ? description[0] : {};
+
     return (
         <View style={{ marginTop: 12 }}>
-            {rows.map((r: any, i: number) => (
-                <View key={i} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{(r && r.kindOfBuilding) ? `${r.structuralType || ''} ${r.kindOfBuilding || ''}`.trim() : 'Building'}</Text>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>Area</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{r.area || app.area || '-'}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>Unit value</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{r.unit_value || app.unit_value || '-'}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>Base market value</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{r.baseMarketValue || app.baseMarketValue || '-'}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>Depreciation</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{r.depreciation || app.depreciation || '-'}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>Market value</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{r.marketValue || app.marketValue || '-'}</Text>
-                    </View>
+            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>
+                    {buildingInfo.kindOfBuilding || buildingInfo.structuralType ? 
+                        `${buildingInfo.structuralType || ''} ${buildingInfo.kindOfBuilding || ''}`.trim() : 
+                        'Property Appraisal'}
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Area</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{app.area || '-'} sqm</Text>
                 </View>
-            ))}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Unit Value</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {app.unit_value ? `₱${Number(app.unit_value).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>BUCC</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{app.bucc || '-'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Base Market Value</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {app.baseMarketValue ? `₱${Number(app.baseMarketValue).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Depreciation</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {app.depreciation ? `${app.depreciation}%` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Depreciation Cost</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {app.depreciationCost ? `₱${Number(app.depreciationCost).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Market Value</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {app.marketValue ? `₱${Number(app.marketValue).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+            </View>
+        </View>
+    );
+}
+
+function renderAssessmentTable(assessment: any) {
+    const assess = assessment?.property_assessment;
+    if (!assess) return <Text style={{ fontSize: 14, color: '#374156' }}>No assessment data</Text>;
+
+    const buildingCategories = {
+        'residential': 'Residential Buildings',
+        'commercial': 'Commercial and Industrial Buildings',
+        'agricultural': 'Agricultural Buildings',
+        'timberland': 'Timberland Buildings'
+    };
+
+    const quarters = {
+        'QTR1': '1st Quarter',
+        'QTR2': '2nd Quarter',
+        'QTR3': '3rd Quarter',
+        'QTR4': '4th Quarter'
+    };
+
+    return (
+        <View style={{ marginTop: 12 }}>
+            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>Property Assessment</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Building Category</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {buildingCategories[assess.building_category as keyof typeof buildingCategories] || assess.building_category || '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Market Value</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {assess.market_value ? `₱${Number(assess.market_value).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Assessment Level</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {assess.assessment_level ? `${assess.assessment_level}%` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Assessment Value</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {assess.assessment_value ? `₱${Number(assess.assessment_value).toLocaleString()}` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Total Area</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {assess.total_area ? `${assess.total_area} sqm` : '-'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Taxable</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {assess.taxable === 1 || assess.taxable === '1' ? 'Yes' : 'No'}
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6b7280' }}>Effectivity</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>
+                        {quarters[assess.eff_quarter as keyof typeof quarters] || assess.eff_quarter || '-'} {assess.eff_year || '-'}
+                    </Text>
+                </View>
+            </View>
         </View>
     );
 }
@@ -201,7 +295,10 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                                 {assessment?.building_location ? `${assessment.building_location.street || ''}, ${assessment.building_location.barangay || ''}, ${assessment.building_location.municipality || ''}, ${assessment.building_location.province || ''}` : '—'}
                             </Text>
                         </View>
-                        <Image source={images.map} style={{ height: 160, width: '100%', marginTop: 12, borderRadius: 12 }} resizeMode="cover" />
+                        <TouchableOpacity onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${assessment?.building_location?.latitude},${assessment?.building_location?.longitude}`)}>
+                            <Image source={images.map} style={{ height: 160, width: '100%', marginTop: 12, borderRadius: 12 }} resizeMode="cover" />
+                        </TouchableOpacity>
+
                     </View>
                 </View>
             )}
@@ -281,7 +378,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                     <View style={{ marginTop: 20 }}>
                         <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Property Appraisal</Text>
                         <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
-                            {renderAppraisalTable(assessment?.property_appraisal)}
+                            {renderAppraisalTable(assessment)}
                         </View>
                     </View>
 
@@ -291,7 +388,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                             {Array.isArray(assessment?.additionalItems?.items) && assessment.additionalItems.items.length > 0 ? (
                                 assessment.additionalItems.items.map((it: any, i: number) => (
                                     <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                                        <Text style={{ fontSize: 14, color: '#374156' }}>{it.name || `Item ${i + 1}`}</Text>
+                                        <Text style={{ fontSize: 14, color: '#374156' }}>{it.label + (it.quantity > 1 ? ` (${it.quantity})` : '') || `Item ${i + 1}`}</Text>
                                         <Text style={{ fontSize: 14, color: '#374156' }}>{new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(it.amount) || 0)}</Text>
                                     </View>
                                 ))
@@ -306,6 +403,13 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }}>Total</Text>
                                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }}>{new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(assessment?.additionalItems?.total) || 0)}</Text>
                             </View>
+                        </View>
+                    </View>
+
+                    <View style={{ marginTop: 28 }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Property Assessment</Text>
+                        <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
+                            {renderAssessmentTable(assessment)}
                         </View>
                     </View>
                 </View>

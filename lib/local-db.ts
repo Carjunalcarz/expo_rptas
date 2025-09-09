@@ -144,19 +144,17 @@ export async function getPendingAssessments() {
 
 export async function markAssessmentSynced(localId: number, remoteId?: string) {
   if (db) {
-    const sql = `UPDATE assessments SET synced = 1, remote_id = ? WHERE local_id = ?;`;
-    await execSql(sql, [remoteId || null, localId]);
+    // Delete the local record after successful sync
+    const sql = `DELETE FROM assessments WHERE local_id = ?;`;
+    await execSql(sql, [localId]);
     return;
   }
 
+  // AsyncStorage fallback - remove the synced record
   const raw = await AsyncStorage.getItem(FALLBACK_KEY);
   const list = raw ? JSON.parse(raw) as any[] : [];
-  const idx = list.findIndex((r: any) => r.local_id === localId);
-  if (idx >= 0) {
-    list[idx].synced = 1;
-    list[idx].remote_id = remoteId ?? null;
-    await AsyncStorage.setItem(FALLBACK_KEY, JSON.stringify(list));
-  }
+  const filtered = list.filter((r: any) => r.local_id !== localId);
+  await AsyncStorage.setItem(FALLBACK_KEY, JSON.stringify(filtered));
 }
 
 export async function syncPending(apiUrl: string) {
@@ -230,6 +228,25 @@ export async function getAllAssessments() {
     data: r.data,
     synced: !!r.synced,
   }));
+}
+
+/** Store sync metadata to track remote IDs for local assessments */
+export async function storeSyncMetadata(localId: number, remoteId: string) {
+  const key = `sync_meta_${localId}`;
+  await AsyncStorage.setItem(key, JSON.stringify({ remoteId, syncedAt: new Date().toISOString() }));
+}
+
+/** Get sync metadata for a local assessment */
+export async function getSyncMetadata(localId: number) {
+  const key = `sync_meta_${localId}`;
+  const raw = await AsyncStorage.getItem(key);
+  return raw ? JSON.parse(raw) : null;
+}
+
+/** Remove sync metadata when local assessment is deleted */
+export async function removeSyncMetadata(localId: number) {
+  const key = `sync_meta_${localId}`;
+  await AsyncStorage.removeItem(key);
 }
 
 export async function getAssessmentById(localId: number) {

@@ -13,6 +13,41 @@ import { Picker } from '@react-native-picker/picker';
 import { useFormContext } from 'react-hook-form';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+// TypeScript interfaces for type safety
+interface PropertyAssessmentData {
+    id: number | string;
+    market_value: number | string;
+    building_category: string;
+    assessment_level: string;
+    assessment_value: number | string;
+    taxable: number | string;
+    eff_year: string;
+    eff_quarter: string;
+    total_area: string;
+}
+
+interface PropertyAppraisalData {
+    description: { kindOfBuilding: string; structuralType: string; }[];
+    area: string;
+    unit_value: string;
+    bucc: string;
+    baseMarketValue: string;
+    depreciation: string;
+    depreciationCost: string;
+    marketValue: string;
+}
+
+interface AssessmentFormData {
+    property_appraisal?: PropertyAppraisalData;
+    property_assessment?: PropertyAssessmentData;
+    general_description?: {
+        totalFloorArea: string;
+    };
+    additionalItems?: {
+        subTotal: number;
+    };
+}
+
 const { width } = Dimensions.get('window');
 
 const formatPHP = (value: number) => {
@@ -103,15 +138,15 @@ const generateYears = () => {
 };
 
 const PropertyAssessment: React.FC = () => {
-    const { watch, setValue } = useFormContext<any>();
+    const { watch, setValue } = useFormContext<AssessmentFormData>();
 
     // Read property_appraisal and compute total market value
     const propertyAppraisal = watch('property_appraisal');
-    const additionalItems = Number(watch('additionalItems.subTotal')) || 0;
+    const additionalItems = Number(watch('additionalItems')?.subTotal) || 0;
 
     let totalMarketValue = 0;
     if (Array.isArray(propertyAppraisal)) {
-        totalMarketValue = propertyAppraisal.reduce((s: number, it: any) => s + (Number(it.marketValue) || 0), 0);
+        totalMarketValue = propertyAppraisal.reduce((s: number, it: PropertyAppraisalData) => s + (Number(it.marketValue) || 0), 0);
     } else if (propertyAppraisal && typeof propertyAppraisal === 'object') {
         // if single object with marketValue
         if (propertyAppraisal.marketValue) totalMarketValue = Number(propertyAppraisal.marketValue) || 0;
@@ -122,16 +157,16 @@ const PropertyAssessment: React.FC = () => {
     const AssessmentTotalMarketValue = totalMarketValue + additionalItems;
 
     // total area from general description or property_appraisal
-    const totalFloorArea = Number(watch('general_description.totalFloorArea')) || 0;
+    const totalFloorArea = Number(watch('general_description')?.totalFloorArea) || 0;
     const paTotalArea = Array.isArray(propertyAppraisal)
-        ? propertyAppraisal.reduce((s: number, it: any) => s + (Number(it.area) || 0), 0)
+        ? propertyAppraisal.reduce((s: number, it: PropertyAppraisalData) => s + (Number(it.area) || 0), 0)
         : Number(propertyAppraisal?.area) || 0;
     const totalArea = paTotalArea || totalFloorArea;
 
-    const buildingCategory = watch('property_assessment.building_category') || watch('buildingCategory') || '';
-    const assessmentLevel = Number(watch('property_assessment.assessment_level')) || 0;
-    const assessmentValue = Number(watch('property_assessment.assessment_value')) || 0;
-    const propertyAssessment = watch('property_assessment') || {};
+    const buildingCategory = watch('property_assessment')?.building_category || '';
+    const assessmentLevel = Number(watch('property_assessment')?.assessment_level) || 0;
+    const assessmentValue = Number(watch('property_assessment')?.assessment_value) || 0;
+    const propertyAssessment = watch('property_assessment') || {} as PropertyAssessmentData;
     const currentQuarter = propertyAssessment.eff_quarter || 'QTR1';
     const currentYear = propertyAssessment.eff_year || new Date().getFullYear().toString();
     const currentTaxable = propertyAssessment.taxable ?? 1;
@@ -139,7 +174,7 @@ const PropertyAssessment: React.FC = () => {
     useEffect(() => {
         // initialize propertyAssessment if missing
         if (!propertyAssessment || Object.keys(propertyAssessment).length === 0) {
-            const initialItem = {
+            const initialItem: PropertyAssessmentData = {
                 id: 1,
                 market_value: AssessmentTotalMarketValue,
                 building_category: buildingCategory || '',
@@ -148,7 +183,7 @@ const PropertyAssessment: React.FC = () => {
                 taxable: 1,
                 eff_year: currentYear,
                 eff_quarter: currentQuarter,
-                total_area: totalArea
+                total_area: totalArea.toString()
             };
             setValue('property_assessment', initialItem);
         }
@@ -157,14 +192,15 @@ const PropertyAssessment: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        setValue('property_assessment', {
+        const updatedAssessment: PropertyAssessmentData = {
             ...propertyAssessment,
             assessment_level: assessmentLevel?.toString() || '',
             assessment_value: assessmentValue,
-            total_area: totalArea,
+            total_area: totalArea.toString(),
             market_value: AssessmentTotalMarketValue,
-            building_category: buildingCategory || propertyAssessment.building_category
-        });
+            building_category: buildingCategory || propertyAssessment.building_category || ''
+        };
+        setValue('property_assessment', updatedAssessment);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [assessmentLevel, assessmentValue, totalArea, AssessmentTotalMarketValue, buildingCategory]);
 
@@ -251,7 +287,6 @@ const PropertyAssessment: React.FC = () => {
                                         selectedValue={buildingCategory}
                                         onValueChange={(newValue: string) => {
                                             setValue('property_assessment', { ...propertyAssessment, building_category: newValue });
-                                            setValue('buildingCategory', newValue);
                                         }}
                                         style={{ height: 40, opacity: 0.01 }}
                                     >

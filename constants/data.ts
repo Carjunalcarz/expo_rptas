@@ -74,9 +74,9 @@ export const settings = [
     route: "/(root)/(tabs)/",
   },
   {
-    title: "Explore",
-    icon: icons.search,
-    route: "/(root)/(tabs)/explore",
+    title: "Assessments",
+    icon: icons.shield,
+    route: "/(root)/(tabs)/remote",
   },
   {
     title: "Profile",

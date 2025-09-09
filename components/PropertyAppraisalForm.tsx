@@ -14,7 +14,7 @@ interface Description {
   kindOfBuilding: string;
   structuralType: string;
 }
-interface PropertyAppraisal {
+interface PropertyAppraisalData {
   description: Description[];
   area: string;
   unit_value: string;
@@ -25,7 +25,7 @@ interface PropertyAppraisal {
   marketValue: string;
 }
 
-const headers: { key: keyof PropertyAppraisal; title: string; minWidth: number }[] = [
+const headers: { key: keyof PropertyAppraisalData; title: string; minWidth: number }[] = [
   { key: 'description', title: 'Description', minWidth: 200 },
   { key: 'area', title: 'Area', minWidth: 120 },
   { key: 'unit_value', title: 'Unit Value', minWidth: 140 },
@@ -52,19 +52,19 @@ const PropertyAppraisalForm: React.FC = () => {
   // - an object with a nested `general_description` array, OR
   // - a single object representing one appraisal row (this is what dummy_data uses)
   // Normalize to an array and compute the base path used for Controller names.
-  let rows: PropertyAppraisal[] = [];
+  let rows: PropertyAppraisalData[] = [];
   let basePath = 'property_appraisal';
   let isSingleObject = false;
 
   if (Array.isArray(watchedPropertyAppraisal)) {
-    rows = watchedPropertyAppraisal as PropertyAppraisal[];
+    rows = watchedPropertyAppraisal as PropertyAppraisalData[];
     basePath = 'property_appraisal';
   } else if (watchedPropertyAppraisal && Array.isArray(watchedPropertyAppraisal.general_description)) {
-    rows = watchedPropertyAppraisal.general_description as PropertyAppraisal[];
+    rows = watchedPropertyAppraisal.general_description as PropertyAppraisalData[];
     basePath = 'property_appraisal.general_description';
   } else if (watchedPropertyAppraisal && typeof watchedPropertyAppraisal === 'object' && (watchedPropertyAppraisal.description !== undefined || watchedPropertyAppraisal.area !== undefined)) {
     // single object case: wrap into an array and render controllers without an index
-    rows = [watchedPropertyAppraisal as PropertyAppraisal];
+    rows = [watchedPropertyAppraisal as PropertyAppraisalData];
     basePath = 'property_appraisal';
     isSingleObject = true;
   } else {
@@ -193,15 +193,15 @@ const PropertyAppraisalForm: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedPropertyAppraisal, totalFloorArea, structuralType, kindOfBuilding]);
 
-  const totalBaseMarketValue = rows.reduce((sum: number, item: PropertyAppraisal) => {
+  const totalBaseMarketValue = rows.reduce((sum: number, item: PropertyAppraisalData) => {
     return sum + (parseFloat(String(item.baseMarketValue)) || 0);
   }, 0);
 
-  const totalDepreciationCost = rows.reduce((sum: number, item: PropertyAppraisal) => {
+  const totalDepreciationCost = rows.reduce((sum: number, item: PropertyAppraisalData) => {
     return sum + (parseFloat(String(item.depreciationCost)) || 0);
   }, 0);
 
-  const totalMarketValue = rows.reduce((sum: number, item: PropertyAppraisal) => {
+  const totalMarketValue = rows.reduce((sum: number, item: PropertyAppraisalData) => {
     return sum + (parseFloat(String(item.marketValue)) || 0);
   }, 0);
 
@@ -271,7 +271,7 @@ const PropertyAppraisalForm: React.FC = () => {
                   <Text className="text-gray-500">No property appraisal data</Text>
                 </View>
               ) : (
-                rows.map((_row: PropertyAppraisal, rowIndex: number) => (
+                rows.map((_row: PropertyAppraisalData, rowIndex: number) => (
                   <View key={rowIndex} className="flex-row">
                     {headers.map((h) => {
                       const controllerName = isSingleObject
