@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image, SectionList, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Image, SectionList, ActivityIndicator, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import images from '@/constants/images';
@@ -10,6 +10,44 @@ import NoResults from '@/components/NoResults';
 
 const RemoteAssessment = () => {
   const { data: assessments, loading, refetch } = useAppwrite({ fn: listAssessmentDocuments });
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [filteredAssessments, setFilteredAssessments] = React.useState<any[]>([]);
+
+  // Filter assessments based on search query
+  React.useEffect(() => {
+    if (!assessments) {
+      setFilteredAssessments([]);
+      return;
+    }
+
+    if (!searchQuery.trim()) {
+      setFilteredAssessments(assessments);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = assessments.filter((item: any) => {
+      const ownerDetails = JSON.parse(item.owner_details || '{}');
+      const location = JSON.parse(item.building_location || '{}');
+      
+      const ownerName = (ownerDetails?.owner || '').toLowerCase();
+      const transactionCode = (ownerDetails?.transactionCode || '').toLowerCase();
+      const tdArp = (ownerDetails?.tdArp || '').toLowerCase();
+      const pin = (ownerDetails?.pin || '').toLowerCase();
+      const address = [location?.street, location?.barangay, location?.municipality, location?.province]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return ownerName.includes(query) ||
+             transactionCode.includes(query) ||
+             tdArp.includes(query) ||
+             pin.includes(query) ||
+             address.includes(query);
+    });
+
+    setFilteredAssessments(filtered);
+  }, [assessments, searchQuery]);
 
   const renderRow = ({ item }: { item: any }) => {
     const ownerDetails = JSON.parse(item.owner_details || '{}');
@@ -56,11 +94,36 @@ const RemoteAssessment = () => {
         <View className="flex flex-row items-center justify-between py-4 mb-6">
           <Text className="text-2xl font-rubik-bold text-gray-800">Remote Assessments</Text>
         </View>
+        
+        {/* Search Input */}
+        <View className="mb-4">
+          <View className="flex-row items-center bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
+            <MaterialIcons name="search" size={18} color="#6b7280" />
+            <TextInput
+              className="flex-1 ml-2 text-sm text-gray-800"
+              placeholder="Search assessments..."
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} className="p-1">
+                <MaterialIcons name="clear" size={18} color="#6b7280" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
         {loading ? (
           <ActivityIndicator size="large" color="#3b82f6" />
-        ) : assessments && assessments.length > 0 ? (
+        ) : filteredAssessments && filteredAssessments.length > 0 ? (
           <SectionList
-            sections={[{ title: 'All Assessments', data: assessments }]}
+            sections={[{ 
+              title: searchQuery ? `Found ${filteredAssessments.length} result${filteredAssessments.length !== 1 ? 's' : ''}` : 'All Assessments', 
+              data: filteredAssessments 
+            }]}
             keyExtractor={(item) => item.$id}
             renderItem={renderRow}
             refreshing={loading}
@@ -70,6 +133,10 @@ const RemoteAssessment = () => {
             )}
             stickySectionHeadersEnabled={false}
           />
+        ) : searchQuery ? (
+          <NoResults title="No Results Found" subtitle={`No assessments match "${searchQuery}"`} />
+        ) : assessments && assessments.length > 0 ? (
+          <NoResults title="No Results Found" subtitle={`No assessments match "${searchQuery}"`} />
         ) : (
           <NoResults title="No Remote Assessments" subtitle="Sync local assessments to see them here." />
         )}

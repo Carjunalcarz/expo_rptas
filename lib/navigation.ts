@@ -26,7 +26,7 @@ export function navigateToEditAssessment(id: number | string) {
 }
 
 export function navigateToRemoteAssessments() {
-  pushPath({ pathname: '/(root)/assessment/remote' });
+  pushPath({ pathname: '/(root)/(tabs)/remote' });
 }
 
 export function navigateToRemoteAssessment(id: string) {

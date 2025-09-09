@@ -365,7 +365,7 @@ const BuildingLocationForm: React.FC = () => {
                   value={value}
                   placeholder="Latitude"
                   editable={false}
-                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12"
+                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12 border-gray-300"
                 />
               )}
             />
@@ -379,7 +379,7 @@ const BuildingLocationForm: React.FC = () => {
                   value={value}
                   placeholder="Longitude"
                   editable={false}
-                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12"
+                  className="border rounded-lg px-4 py-3 text-base font-rubik text-black-300 bg-gray-100 h-12 border-gray-300"
                 />
               )}
             />

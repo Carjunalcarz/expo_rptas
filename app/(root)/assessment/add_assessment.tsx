@@ -21,14 +21,17 @@ import { PRIMARY_COLOR } from '../../../constants/colors';
 // Interfaces (abbreviated — same shapes as other file)
 interface AdministratorBeneficiaryData { name: string; address: string; tin: string; telNo: string; }
 interface OwnerDetailsData { owner: string; address: string; tin: string; telNo: string; hasAdministratorBeneficiary: boolean; administratorBeneficiary?: AdministratorBeneficiaryData; transactionCode?: string; tdArp?: string; pin?: string; }
-interface BuildingLocationData { street: string; barangay: string; municipality: string; province: string; }
+interface BuildingLocationData { street: string; barangay: string; municipality: string; province: string; latitude?: string; longitude?: string; buildingImages?: string[]; }
 interface LandReferenceData { owner: string; titleNumber: string; lotNumber: string; blockNumber: string; surveyNumber: string; tdnArpNumber: string; area: string; }
 interface FloorArea { id: string; floorNumber: string; area: string; }
 interface GeneralFormData { kindOfBuilding: string; structuralType: string; buildingPermitNo: string; condominiumCCT: string; completionCertificateDate: string; occupancyCertificateDate: string; dateConstructed: string; dateOccupied: string; buildingAge: string; numberOfStoreys: string; floorAreas: FloorArea[]; totalFloorArea: string; floorPlanImages: string[]; }
 interface FloorMaterial { id: string; floorName: string; material: string; otherSpecify: string; }
 interface WallPartition { id: string; wallName: string; material: string; otherSpecify: string; }
 interface StructuralFormData { foundation: { reinforceConcrete: boolean; plainConcrete: boolean; others: boolean; othersSpecify: string; }; columns: { steel: boolean; reinforceConcrete: boolean; wood: boolean; others: boolean; othersSpecify: string; }; beams: { steel: boolean; reinforceConcrete: boolean; others: boolean; othersSpecify: string; }; trussFraming: { steel: boolean; wood: boolean; others: boolean; othersSpecify: string; }; roof: { reinforceConcrete: boolean; tiles: boolean; giSheet: boolean; aluminum: boolean; asbestos: boolean; longSpan: boolean; concreteDesk: boolean; nipaAnahawCogon: boolean; others: boolean; othersSpecify: string; }; flooring: FloorMaterial[]; wallsPartitions: WallPartition[]; }
-interface AssessmentFormData { owner_details: OwnerDetailsData; building_location: BuildingLocationData; land_reference: LandReferenceData; general_description: GeneralFormData; structural_materials?: StructuralFormData; property_appraisal?: any; property_assessment?: any; additionalItems?: any; additionalItem?: string; }
+interface AssessmentFormData { owner_details: OwnerDetailsData; building_location: BuildingLocationData; land_reference: LandReferenceData; general_description: GeneralFormData; structural_materials?: StructuralFormData; property_appraisal?: PropertyAppraisalData; property_assessment?: PropertyAssessmentData; additionalItems?: any; additionalItem?: string; }
+interface PropertyAssessmentData { id: number | string; market_value: number | string; building_category: string; assessment_level: string; assessment_value: number | string; taxable: number | string; eff_year: string; eff_quarter: string; total_area: string; }
+interface Description { kindOfBuilding: string; structuralType: string; }
+interface PropertyAppraisalData { description: Description[]; area: string; unit_value: string; bucc: string; baseMarketValue: string; depreciation: string; depreciationCost: string; marketValue: string; }
 
 const DEFAULT_VALUES: AssessmentFormData = {
     owner_details: { transactionCode: "", tdArp: "", pin: "", owner: "", address: "", tin: "", telNo: "", hasAdministratorBeneficiary: false, administratorBeneficiary: { name: "", address: "", tin: "", telNo: "", }, },
@@ -43,14 +46,135 @@ const DEFAULT_VALUES: AssessmentFormData = {
 };
 
 const dummy_data = (): AssessmentFormData => ({
-    owner_details: { transactionCode: "12345", tdArp: "67890", pin: "112233", owner: "John Doe", address: "123 Main St", tin: "123-456-789", telNo: "123-456-7890", hasAdministratorBeneficiary: true, administratorBeneficiary: { name: "Jane Doe", address: "456 Elm St", tin: "987-654-321", telNo: "098-765-4321", } },
-    building_location: { street: "123 Main St", barangay: "Soriano", municipality: "Cabadbaran City", province: "Agusan del Norte" },
-    land_reference: { owner: 'Juan dela Cruz', titleNumber: 'OCT-123456', lotNumber: '123', blockNumber: '123', surveyNumber: '123', tdnArpNumber: '123', area: '1000', },
-    general_description: { kindOfBuilding: 'Residential', structuralType: 'I-A', buildingPermitNo: 'BP-2023-12345', condominiumCCT: 'asasasdasd', completionCertificateDate: '2023-01-15T00:00:00.000Z', occupancyCertificateDate: '2023-02-01T00:00:00.000Z', dateConstructed: '2023-01-10T00:00:00.000Z', dateOccupied: '2023-02-15T00:00:00.000Z', buildingAge: '1', numberOfStoreys: '2', floorAreas: [{ id: '1', floorNumber: 'Ground Floor', area: '80' }, { id: '2', floorNumber: 'Second Floor', area: '70' }], totalFloorArea: '150', floorPlanImages: [], },
-    structural_materials: { foundation: { reinforceConcrete: true, plainConcrete: false, others: false, othersSpecify: '', }, columns: { steel: false, reinforceConcrete: true, wood: false, others: false, othersSpecify: '', }, beams: { steel: false, reinforceConcrete: true, others: false, othersSpecify: '', }, trussFraming: { steel: true, wood: false, others: false, othersSpecify: '', }, roof: { reinforceConcrete: false, tiles: false, giSheet: true, aluminum: false, asbestos: false, longSpan: false, concreteDesk: false, nipaAnahawCogon: false, others: false, othersSpecify: '', }, flooring: [{ id: '1', floorName: 'Ground Floor', material: 'Reinforce Concrete', otherSpecify: '' }, { id: '2', floorName: 'Second Floor', material: 'Tiles', otherSpecify: '' }], wallsPartitions: [{ id: '1', wallName: 'Exterior Walls', material: 'Reinforce Concrete', otherSpecify: '' }, { id: '2', wallName: 'Interior Partitions', material: 'CHB', otherSpecify: '' }], },
-    property_appraisal: { description: [{ kindOfBuilding: '', structuralType: '', }], area: '', unit_value: '', bucc: '', baseMarketValue: '', depreciation: '', depreciationCost: '', marketValue: '' },
-    additionalItems: { items: [], subTotal: 0, total: 0 },
-    additionalItem: '',
+    owner_details: {
+        transactionCode: "RPTAS-2024-001234",
+        tdArp: "08-001-12345",
+        pin: "085-12-001-01-001",
+        owner: "Maria Santos-Dela Cruz",
+        address: "456 Rizal Street, Poblacion, Carmen, Agusan del Norte",
+        tin: "123-456-789-000",
+        telNo: "+63-917-123-4567",
+        hasAdministratorBeneficiary: true,
+        administratorBeneficiary: {
+            name: "Roberto Santos Dela Cruz",
+            address: "789 Bonifacio Avenue, Poblacion, Carmen, Agusan del Norte",
+            tin: "987-654-321-000",
+            telNo: "+63-928-987-6543"
+        }
+    },
+    building_location: {
+        street: "456 Rizal Street",
+        barangay: "Poblacion",
+        municipality: "Carmen",
+        province: "Agusan del Norte",
+        latitude: "",
+        longitude: "",
+        buildingImages: []
+    },
+    land_reference: {
+        owner: 'Maria Santos-Dela Cruz',
+        titleNumber: 'TCT-T-12345',
+        lotNumber: '1234',
+        blockNumber: '12',
+        surveyNumber: 'Psd-08-001234',
+        tdnArpNumber: '08-001-12345',
+        area: '250',
+    },
+    general_description: {
+        kindOfBuilding: 'Residential',
+        structuralType: 'II-A',
+        buildingPermitNo: 'BP-2022-0456',
+        condominiumCCT: 'BP-2022-0456',
+        completionCertificateDate: '2022-08-15T00:00:00.000Z',
+        occupancyCertificateDate: '2022-09-01T00:00:00.000Z',
+        dateConstructed: '2022-03-01T00:00:00.000Z',
+        dateOccupied: '2022-09-15T00:00:00.000Z',
+        buildingAge: '2',
+        numberOfStoreys: '2',
+        floorAreas: [
+            { id: '1', floorNumber: 'Ground Floor', area: '120' },
+            { id: '2', floorNumber: 'Second Floor', area: '100' }
+        ],
+        totalFloorArea: '',
+        floorPlanImages: []
+    },
+    structural_materials: {
+        foundation: {
+            reinforceConcrete: true,
+            plainConcrete: false,
+            others: false,
+            othersSpecify: ''
+        },
+        columns: {
+            steel: false,
+            reinforceConcrete: true,
+            wood: false,
+            others: false,
+            othersSpecify: ''
+        },
+        beams: {
+            steel: false,
+            reinforceConcrete: true,
+            others: false,
+            othersSpecify: ''
+        },
+        trussFraming: {
+            steel: true,
+            wood: false,
+            others: false,
+            othersSpecify: ''
+        },
+        roof: {
+            reinforceConcrete: false,
+            tiles: true,
+            giSheet: false,
+            aluminum: false,
+            asbestos: false,
+            longSpan: false,
+            concreteDesk: false,
+            nipaAnahawCogon: false,
+            others: false,
+            othersSpecify: ''
+        },
+        flooring: [
+            { id: '1', floorName: 'Ground Floor', material: 'Tiles (Ceramic)', otherSpecify: '' },
+            { id: '2', floorName: 'Second Floor', material: 'Tiles (Ceramic)', otherSpecify: '' }
+        ],
+        wallsPartitions: [
+            { id: '1', wallName: 'Exterior Walls', material: 'Concrete Hollow Blocks (CHB)', otherSpecify: '' },
+            { id: '2', wallName: 'Interior Partitions', material: 'Concrete Hollow Blocks (CHB)', otherSpecify: '' }
+        ]
+    },
+    property_appraisal: {
+        description: [{
+            kindOfBuilding: '',
+            structuralType: ''
+        }],
+        area: '',
+        unit_value: '',
+        bucc: '',
+        baseMarketValue: '',
+        depreciation: '',
+        depreciationCost: '',
+        marketValue: ''
+    },
+    property_assessment: {
+        id: '',
+        market_value: '',
+        building_category: '',
+        assessment_level: '',
+        assessment_value: '',
+        taxable: '',
+        eff_year: '',
+        eff_quarter: '',
+        total_area: ''
+    },
+    additionalItems: {
+        items: [],
+        subTotal: 0,
+        total: 0
+    },
+    additionalItem: ''
 });
 
 const AddAssessment: React.FC = () => {

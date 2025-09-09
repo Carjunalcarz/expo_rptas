@@ -548,7 +548,8 @@ export async function createAssessmentDocument(params: {
 
   const owner = data?.owner_details || {};
   const loc = data?.building_location || {};
-  const pa = data?.property_assessment || {};
+  const propertyAssessment = data?.property_assessment || {};
+  const propertyAppraisal = data?.property_appraisal || {};
   const gd = data?.general_description || {};
 
   // Upload images if a bucket is configured; replace local URIs with storage URLs
@@ -576,10 +577,10 @@ export async function createAssessmentDocument(params: {
   }
 
   // Also handle property_appraisal.gallery: [{ image: uri }]
-  let safePA = { ...pa } as any;
-  if (Array.isArray((pa as any)?.gallery)) {
+  let safePA = { ...propertyAppraisal } as any;
+  if (Array.isArray((propertyAppraisal as any)?.gallery)) {
     const newGallery: any[] = [];
-    for (const item of (pa as any).gallery) {
+    for (const item of (propertyAppraisal as any).gallery) {
       const uri = item?.image;
       if (typeof uri === 'string' && uri) {
         try {
@@ -672,11 +673,11 @@ export async function createAssessmentDocument(params: {
     municipality: loc.municipality || '',
     province: loc.province || '',
 
-    marketValueTotal: Number(pa?.market_value || 0),
-    taxable: (pa?.taxable ?? 1) === 1,
-    effYear: pa?.eff_year || String(new Date().getFullYear()),
-    effQuarter: pa?.eff_quarter || 'QTR1',
-    totalArea: Number(pa?.total_area || gd?.totalFloorArea || 0),
+    marketValueTotal: Number(propertyAssessment?.market_value || 0),
+    taxable: (propertyAssessment?.taxable ?? 1) === 1,
+    effYear: propertyAssessment?.eff_year || String(new Date().getFullYear()),
+    effQuarter: propertyAssessment?.eff_quarter || 'QTR1',
+    totalArea: Number(propertyAssessment?.total_area || gd?.totalFloorArea || 0),
     additionalItem: data?.additionalItem || '',
 
   // JSON blobs are stored as strings per schema
@@ -686,7 +687,7 @@ export async function createAssessmentDocument(params: {
   general_description: JSON.stringify(safeGD || {}),
   structural_materials: JSON.stringify(data?.structural_materials || {}),
   property_appraisal: JSON.stringify(safePA || {}),
-  property_assessment: JSON.stringify(pa || {}),
+  property_assessment: JSON.stringify(propertyAssessment || {}),
   additionalItems: JSON.stringify(data?.additionalItems || { items: [], subTotal: 0, total: 0 }),
   };
 
