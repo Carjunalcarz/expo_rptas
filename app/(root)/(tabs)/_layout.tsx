@@ -54,11 +54,11 @@ const TabsLayout = () => {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="remote"
         options={{
-          title: "Explore",
+          title: "Remote",
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} icon={icons.search} title="Explore" />
+            <TabIcon focused={focused} icon={icons.search} title="Remote" />
           ),
         }}
       />

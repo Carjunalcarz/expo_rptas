@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import images from '@/constants/images';
 import { getAssessmentById, deleteAssessment, getAllAssessments } from '@/lib/local-db';
+import { getAssessmentDocument } from '@/lib/appwrite';
+import { parseAssessmentData } from '@/lib/parser';
 import { getRouter } from '@/lib/router';
 import { FormProvider, useForm } from 'react-hook-form';
 import HeaderHero from './components/HeaderHero';
@@ -29,24 +31,39 @@ const AssessmentDetail: React.FC = () => {
         (async () => {
             try {
                 if (!id) { setNotFound(true); return; }
-                let row = null as any;
+                let assessmentData: any | null = null;
+                let metaData: any | null = null;
+
+                // Try to load from local DB first
                 const numericId = Number(id);
                 if (!Number.isNaN(numericId)) {
-                    row = await getAssessmentById(numericId);
+                    const row = await getAssessmentById(numericId);
+                    if (row) {
+                        assessmentData = row.data ?? null;
+                        metaData = { local_id: row.local_id, remote_id: row.remote_id ?? null, created_at: row.created_at, synced: !!row.synced };
+                    }
                 }
-                // Fallback: when id is a createdAt string (from AsyncStorage list injection)
-                if (!row) {
-                    const list = await getAllAssessments();
-                    row = list.find((r: any) => String(r.local_id) === String(id) || String(r.created_at) === String(id)) ?? null;
+
+                // If not found locally, try fetching from remote
+                if (!assessmentData) {
+                    try {
+                        const remoteDoc = await getAssessmentDocument(id);
+                        if (remoteDoc) {
+                            const parsedData = parseAssessmentData(remoteDoc);
+                            assessmentData = parsedData;
+                            metaData = { remote_id: remoteDoc.$id, created_at: remoteDoc.$createdAt, synced: true };
+                        }
+                    } catch (e) {
+                        console.log('Failed to fetch remote assessment, it may be a local-only ID that was not found.', e);
+                    }
                 }
+
                 if (mounted) {
-                    if (!row) {
+                    if (!assessmentData) {
                         setNotFound(true);
-                        setAssessment(null);
-                        setMeta(null);
                     } else {
-                        setAssessment(row.data ?? null);
-                        setMeta({ local_id: row.local_id, remote_id: row.remote_id ?? null, created_at: row.created_at, synced: !!row.synced });
+                        setAssessment(assessmentData);
+                        setMeta(metaData);
                     }
                 }
             } finally {
@@ -88,12 +105,32 @@ const AssessmentDetail: React.FC = () => {
 
     const handleEdit = async () => {
         try {
-            const entry = { createdAt: meta?.created_at ?? new Date().toISOString(), data: assessment, local_id: meta?.local_id } as any;
+            const isRemote = meta?.remote_id && !meta?.local_id;
+            const editId = isRemote ? meta.remote_id : meta?.local_id;
+
+            if (!editId) {
+                Alert.alert('Error', 'Cannot edit this assessment as it has no valid ID.');
+                return;
+            }
+
+            // Ensure the data being passed to the edit screen is fully parsed.
+            // The `assessment` state already holds the correctly parsed data from the loading useEffect.
+            const entry = {
+                createdAt: meta?.created_at ?? new Date().toISOString(),
+                data: assessment, // This now correctly holds the parsed data for both local and remote.
+                local_id: meta?.local_id,
+                remote_id: meta?.remote_id,
+                synced: meta?.synced,
+            };
+
             await AsyncStorage.setItem('last_assessment', JSON.stringify(entry));
             const router = getRouter();
-            if (router) router.push({ pathname: '/assessment/edit/[id]', params: { id: String(meta?.local_id ?? '') } });
+            if (router) {
+                router.push({ pathname: '/(root)/assessment/edit/[id]', params: { id: String(editId) } });
+            }
         } catch (err) {
             console.warn('handleEdit failed', err);
+            Alert.alert('Error', 'Could not prepare the assessment for editing.');
         }
     };
 

@@ -22,7 +22,7 @@ import { Card, FeaturedCard } from "@/components/Cards";
 import { useAppwrite } from "@/lib/useAppwrite";
 import { useGlobalContext } from "@/lib/global-provider";
 import { listAssessmentDocuments } from "@/lib/appwrite";
-import { navigateToRemoteAssessment, navigateToRemoteAssessments } from "@/lib/navigation";
+import { navigateToAssessment, navigateToRemoteAssessment, navigateToRemoteAssessments } from "@/lib/navigation";
 import seed from "@/lib/seed";
 
 const Home = () => {
@@ -183,7 +183,7 @@ const Home = () => {
                     const address = [loc?.street, loc?.barangay, loc?.municipality, loc?.province].filter(Boolean).join(', ');
                     return (
                       <TouchableOpacity
-                        onPress={() => navigateToRemoteAssessment(item.$id)}
+                        onPress={() => navigateToAssessment(item.$id)}
                         className="w-64 mr-5"
                       >
                         <Image source={img ? { uri: img } : images.noResult} className="w-64 h-40 rounded-2xl" resizeMode="cover" />
@@ -239,7 +239,7 @@ const Home = () => {
                     return (
                       <TouchableOpacity
                         key={item.$id}
-                        onPress={() => navigateToRemoteAssessment(item.$id)}
+                        onPress={() => navigateToAssessment(item.$id)}
                         className="flex-row items-center py-3"
                       >
                         <Image source={img ? { uri: img } : images.noResult} className="w-12 h-12 rounded-lg mr-3" resizeMode="cover" />
