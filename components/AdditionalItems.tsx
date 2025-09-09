@@ -202,7 +202,7 @@ const AdditionalItems: React.FC = () => {
                 >
                     <Picker.Item label="-- Select an item --" value="" />
                     {items.map((it, idx) => (
-                        <Picker.Item key={idx} label={`${it.label} (${it.group})`} value={it.label} />
+                        <Picker.Item key={`${it.group}-${it.label}-${idx}`} label={`${it.label} (${it.group})`} value={it.label} />
                     ))}
                 </Picker>
             </View>
@@ -253,8 +253,8 @@ const AdditionalItems: React.FC = () => {
                                 <Text className="text-gray-500 italic">No Items Added</Text>
                             </View>
                         ) : (
-                            tableItems.map((item: any) => (
-                                <View key={item.id} className="flex-row">
+                            tableItems.map((item: any, idx: number) => (
+                                <View key={`${String(item.id)}-${idx}`} className="flex-row">
                                     <View className="py-2 px-2 min-w-[220px] items-center justify-center" style={{ minWidth: 220 }}>
                                         <Text className="text-gray-800 text-sm">{item.label}</Text>
                                     </View>
