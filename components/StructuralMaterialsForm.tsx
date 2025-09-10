@@ -47,7 +47,10 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
     roof: false,
     flooring: false,
     walls: false,
+    wallsPartitions: false,
   });
+
+  const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -193,6 +196,20 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
     );
   };
 
+  const toggleDropdown = (id: string) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const selectOption = (option: string, id: string) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [id]: false
+    }));
+  };
+
   // Separate dropdown component to avoid hooks issues
   const MaterialDropdown = ({
     value,
@@ -207,24 +224,12 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
     placeholder?: string;
     dropdownId: string;
   }) => {
-    const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
-
-    const toggleDropdown = (id: string) => {
-      setOpenDropdowns(prev => ({
-        ...prev,
-        [id]: !prev[id]
-      }));
-    };
-
-    const selectOption = (option: string, id: string) => {
-      onValueChange(option);
-      setOpenDropdowns(prev => ({
-        ...prev,
-        [id]: false
-      }));
-    };
-
     const isOpen = openDropdowns[dropdownId] || false;
+
+    const handleSelectOption = (option: string) => {
+      onValueChange(option);
+      selectOption(option, dropdownId);
+    };
 
     return (
       <View className="relative">
@@ -244,7 +249,7 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
               {options.map((option, index) => (
                 <TouchableOpacity
                   key={index}
-                  onPress={() => selectOption(option, dropdownId)}
+                  onPress={() => handleSelectOption(option)}
                   className="px-3 py-2 border-b border-gray-100"
                 >
                   <Text className="text-sm font-rubik text-black-300">{option}</Text>
