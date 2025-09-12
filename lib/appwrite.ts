@@ -1207,7 +1207,9 @@ export async function syncPropertyData(
         localBuildingImages: uploadResults.localUris,
       },
       land_reference: {},
-      general_description: {},
+      general_description: {
+        floorPlanDrawings: []
+      },
       structural_materials: {},
       property_appraisal: {},
       property_assessment: {},
@@ -1277,7 +1279,9 @@ export async function syncWithProgress(
         localBuildingImages: uploadResults.localUris
       },
       land_reference: {},
-      general_description: {},
+      general_description: {
+        floorPlanDrawings: []
+      },
       structural_materials: {},
       property_appraisal: {},
       property_assessment: {},

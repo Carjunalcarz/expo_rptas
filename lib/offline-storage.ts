@@ -32,7 +32,9 @@ async function toAssessmentSchema(data: OfflinePropertyData, imageUrls: string[]
       buildingImages: imageUrls,
     },
     land_reference: {},
-    general_description: {},
+    general_description: {
+      floorPlanDrawings: []
+    },
     structural_materials: {},
     // Store price under property_appraisal to keep it visible remotely (schema accepts JSON blob)
     property_appraisal: { price: data.price },

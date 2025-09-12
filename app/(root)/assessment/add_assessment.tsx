@@ -24,7 +24,7 @@ interface OwnerDetailsData { owner: string; address: string; tin: string; telNo:
 interface BuildingLocationData { street: string; barangay: string; municipality: string; province: string; latitude?: string; longitude?: string; buildingImages?: string[]; }
 interface LandReferenceData { owner: string; titleNumber: string; lotNumber: string; blockNumber: string; surveyNumber: string; tdnArpNumber: string; area: string; }
 interface FloorArea { id: string; floorNumber: string; area: string; }
-interface GeneralFormData { kindOfBuilding: string; structuralType: string; buildingPermitNo: string; condominiumCCT: string; completionCertificateDate: string; occupancyCertificateDate: string; dateConstructed: string; dateOccupied: string; buildingAge: string; numberOfStoreys: string; floorAreas: FloorArea[]; totalFloorArea: string; floorPlanImages: string[]; }
+interface GeneralFormData { kindOfBuilding: string; structuralType: string; buildingPermitNo: string; condominiumCCT: string; completionCertificateDate: string; occupancyCertificateDate: string; dateConstructed: string; dateOccupied: string; buildingAge: string; numberOfStoreys: string; floorAreas: FloorArea[]; totalFloorArea: string; floorPlanImages: string[]; floorPlanDrawings: string[]; }
 interface FloorMaterial { id: string; floorName: string; material: string; otherSpecify: string; }
 interface WallPartition { id: string; wallName: string; material: string; otherSpecify: string; }
 interface StructuralFormData { foundation: { reinforceConcrete: boolean; plainConcrete: boolean; others: boolean; othersSpecify: string; }; columns: { steel: boolean; reinforceConcrete: boolean; wood: boolean; others: boolean; othersSpecify: string; }; beams: { steel: boolean; reinforceConcrete: boolean; others: boolean; othersSpecify: string; }; trussFraming: { steel: boolean; wood: boolean; others: boolean; othersSpecify: string; }; roof: { reinforceConcrete: boolean; tiles: boolean; giSheet: boolean; aluminum: boolean; asbestos: boolean; longSpan: boolean; concreteDesk: boolean; nipaAnahawCogon: boolean; others: boolean; othersSpecify: string; }; flooring: FloorMaterial[]; wallsPartitions: WallPartition[]; }
@@ -35,12 +35,12 @@ interface PropertyAppraisalData { description: Description[]; area: string; unit
 
 const DEFAULT_VALUES: AssessmentFormData = {
     owner_details: { transactionCode: "", tdArp: "", pin: "", owner: "", address: "", tin: "", telNo: "", hasAdministratorBeneficiary: false, administratorBeneficiary: { name: "", address: "", tin: "", telNo: "", }, },
-    building_location: { street: "", barangay: "", municipality: "", province: "", },
+    building_location: { street: "", barangay: "", municipality: "", province: "Agusan del Norte", },
     land_reference: { owner: '', titleNumber: '', lotNumber: '', blockNumber: '', surveyNumber: '', tdnArpNumber: '', area: '', },
-    general_description: { kindOfBuilding: '', structuralType: '', buildingPermitNo: '', condominiumCCT: '', completionCertificateDate: '', occupancyCertificateDate: '', dateConstructed: '', dateOccupied: '', buildingAge: '', numberOfStoreys: '', floorAreas: [{ id: '1', floorNumber: 'Ground Floor', area: '' }], totalFloorArea: '0', floorPlanImages: [], },
+    general_description: { kindOfBuilding: '', structuralType: '', buildingPermitNo: '', condominiumCCT: '', completionCertificateDate: '', occupancyCertificateDate: '', dateConstructed: '', dateOccupied: '', buildingAge: '', numberOfStoreys: '', floorAreas: [{ id: '1', floorNumber: 'Ground Floor', area: '' }], totalFloorArea: '0', floorPlanImages: [], floorPlanDrawings: [] },
     structural_materials: { foundation: { reinforceConcrete: false, plainConcrete: false, others: false, othersSpecify: '', }, columns: { steel: false, reinforceConcrete: false, wood: false, others: false, othersSpecify: '', }, beams: { steel: false, reinforceConcrete: false, others: false, othersSpecify: '', }, trussFraming: { steel: false, wood: false, others: false, othersSpecify: '', }, roof: { reinforceConcrete: false, tiles: false, giSheet: false, aluminum: false, asbestos: false, longSpan: false, concreteDesk: false, nipaAnahawCogon: false, others: false, othersSpecify: '', }, flooring: [{ id: '1', floorName: 'Ground Floor', material: '', otherSpecify: '' }], wallsPartitions: [{ id: '1', wallName: 'Main Wall', material: '', otherSpecify: '' }], },
     property_appraisal: { description: [{ kindOfBuilding: '', structuralType: '', }], area: '', unit_value: '', bucc: '', baseMarketValue: '', depreciation: '', depreciationCost: '', marketValue: '', },
-    property_assessment: { id: 0, market_value: 0, building_category: '', assessment_level: '', assessment_value: 0, taxable: 1, eff_year: new Date().getFullYear().toString(), eff_quarter: 'QTR1', total_area: '0' },
+    property_assessment: { id: 0, market_value: 0, building_category: '', assessment_level: '', assessment_value: 0, taxable: 1, eff_year: new Date().getFullYear().toString(), eff_quarter: 'QTR2', total_area: '0' },
     additionalItems: { items: [], subTotal: 0, total: 0 },
     additionalItem: '',
 };
@@ -96,7 +96,8 @@ const dummy_data = (): AssessmentFormData => ({
             { id: '2', floorNumber: 'Second Floor', area: '100' }
         ],
         totalFloorArea: '',
-        floorPlanImages: []
+        floorPlanImages: [],
+        floorPlanDrawings: []
     },
     structural_materials: {
         foundation: {
@@ -164,9 +165,9 @@ const dummy_data = (): AssessmentFormData => ({
         building_category: '',
         assessment_level: '',
         assessment_value: '',
-        taxable: '',
-        eff_year: '',
-        eff_quarter: '',
+        taxable: '1',
+        eff_year: '2026',
+        eff_quarter: 'QTR2',
         total_area: ''
     },
     additionalItems: {

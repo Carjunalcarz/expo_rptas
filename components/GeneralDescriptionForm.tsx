@@ -10,7 +10,8 @@ import {
   Modal,
   Dimensions,
   ScrollView,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native'
 import React, { useState } from 'react'
 import { useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form'
@@ -18,6 +19,8 @@ import * as ImagePicker from 'expo-image-picker'
 import { FloorArea } from '@/types';
 import { PRIMARY_COLOR } from '@/constants/colors';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import FloorPlanDrawing from './FloorPlanDrawing';
+import DrawingPreview from './DrawingPreview';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -205,12 +208,29 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [availableBuildingTypes, setAvailableBuildingTypes] = useState<string[]>([]);
+  const [isDrawingVisible, setIsDrawingVisible] = useState(false);
+  const [floorPlanDrawings, setFloorPlanDrawings] = useState<string[]>([]);
+  const [isDrawingGalleryVisible, setIsDrawingGalleryVisible] = useState(false);
+  const [selectedDrawingIndex, setSelectedDrawingIndex] = useState(0);
+  const [editingDrawingIndex, setEditingDrawingIndex] = useState<number | null>(null);
 
   // Watch form values
   const structuralType = watch('general_description.structuralType');
   const kindOfBuilding = watch('general_description.kindOfBuilding');
   const floorAreas = useWatch({ control, name: 'general_description.floorAreas' });
   const floorPlanImages = watch('general_description.floorPlanImages');
+  const formFloorPlanDrawings = watch('general_description.floorPlanDrawings');
+
+  // Sync local state with form data for drawings
+  React.useEffect(() => {
+    if (formFloorPlanDrawings && Array.isArray(formFloorPlanDrawings)) {
+      setFloorPlanDrawings(formFloorPlanDrawings);
+    } else {
+      // Initialize empty array if not set
+      setValue('general_description.floorPlanDrawings', []);
+      setFloorPlanDrawings([]);
+    }
+  }, [formFloorPlanDrawings, setValue]);
 
   // Update available building types when structural type changes
   React.useEffect(() => {
@@ -454,6 +474,63 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     setIsGalleryVisible(true);
   };
 
+  const handleSaveDrawing = (drawingData: string, imageBase64?: string) => {
+    console.log('Saving drawing data:', drawingData);
+    const currentDrawings = [...floorPlanDrawings];
+    
+    if (editingDrawingIndex !== null) {
+      // Update existing drawing
+      currentDrawings[editingDrawingIndex] = drawingData;
+      setEditingDrawingIndex(null);
+      console.log('Updated existing drawing at index:', editingDrawingIndex);
+    } else {
+      // Add new drawing
+      currentDrawings.push(drawingData);
+      console.log('Added new drawing, total drawings:', currentDrawings.length);
+    }
+    
+    setFloorPlanDrawings(currentDrawings);
+    setValue('general_description.floorPlanDrawings', currentDrawings);
+    
+    // Add the converted image to floor plan images if provided
+    if (imageBase64) {
+      const currentImages = watch('general_description.floorPlanImages') || [];
+      const newImages = [...currentImages, imageBase64];
+      setValue('general_description.floorPlanImages', newImages);
+      console.log('Added drawing as image to floor plan images, total images:', newImages.length);
+    }
+    
+    console.log('Floor plan drawings state updated:', currentDrawings.length);
+  };
+
+  const removeDrawing = (index: number) => {
+    const updatedDrawings = floorPlanDrawings.filter((_, i) => i !== index);
+    setFloorPlanDrawings(updatedDrawings);
+    setValue('general_description.floorPlanDrawings', updatedDrawings);
+  };
+
+  const showFloorPlanOptions = () => {
+    Alert.alert(
+      'Add Floor Plan',
+      'Choose how to create your floor plan',
+      [
+        { text: 'Draw Floor Plan', onPress: () => setIsDrawingVisible(true) },
+        { text: 'Upload Image', onPress: showImageOptions },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const openDrawingGallery = (index: number) => {
+    setSelectedDrawingIndex(index);
+    setIsDrawingGalleryVisible(true);
+  };
+
+  const editDrawing = (index: number) => {
+    setEditingDrawingIndex(index);
+    setIsDrawingVisible(true);
+  };
+
   const renderImageItem = ({ item, index }: { item: string; index: number }) => (
     <View className="relative mr-3">
       <TouchableOpacity onPress={() => openGallery(index)}>
@@ -472,7 +549,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     </View>
   );
 
-  // Dropdown field as a proper React component to satisfy Hooks rules
+  // Dropdown field using Modal for better z-index handling
   const DropdownField: React.FC<{
     name: string;
     options: string[];
@@ -493,36 +570,100 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
         name={name}
         rules={rules}
         render={({ field: { onChange, value } }) => (
-          <View className="relative">
+          <View>
             <TouchableOpacity
-              onPress={() => setIsOpen(!isOpen)}
+              onPress={() => setIsOpen(true)}
               className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${fieldError ? 'border-red-500' : 'border-gray-300'}`}
             >
               <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
                 {value || placeholder}
               </Text>
-
-              <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
+              <Text className="text-gray-600">▼</Text>
             </TouchableOpacity>
 
-            {isOpen && (
-              <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
-                <ScrollView nestedScrollEnabled={true}>
-                  {options.map((option, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => {
-                        onChange(option);
-                        setIsOpen(false);
-                      }}
-                      className="px-3 py-2 border-b border-gray-100"
+            <Modal
+              visible={isOpen}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setIsOpen(false)}
+            >
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                activeOpacity={1}
+                onPress={() => setIsOpen(false)}
+              >
+                <View style={{ 
+                  flex: 1, 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  paddingHorizontal: 20
+                }}>
+                  <TouchableOpacity 
+                    activeOpacity={1}
+                    style={{
+                      backgroundColor: 'white',
+                      borderRadius: 12,
+                      maxHeight: screenHeight * 0.6,
+                      width: '100%',
+                      maxWidth: 400,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 8,
+                      elevation: 10,
+                    }}
+                  >
+                    <View style={{ 
+                      paddingVertical: 16, 
+                      paddingHorizontal: 20,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#e5e7eb'
+                    }}>
+                      <Text style={{ 
+                        fontSize: 18, 
+                        fontWeight: '600',
+                        color: '#374151',
+                        textAlign: 'center'
+                      }}>
+                        {placeholder}
+                      </Text>
+                    </View>
+                    
+                    <ScrollView 
+                      style={{ maxHeight: screenHeight * 0.4 }}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
                     >
-                      <Text className="text-base font-rubik text-black-300">{option}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+                      {options.map((option, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          onPress={() => {
+                            onChange(option);
+                            setIsOpen(false);
+                          }}
+                          style={{
+                            paddingVertical: 16,
+                            paddingHorizontal: 20,
+                            borderBottomWidth: index < options.length - 1 ? 1 : 0,
+                            borderBottomColor: '#f3f4f6',
+                            backgroundColor: value === option ? '#f0f9ff' : 'transparent'
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ 
+                            fontSize: 16, 
+                            color: value === option ? '#0369a1' : '#374151',
+                            fontWeight: value === option ? '600' : '400'
+                          }}>
+                            {option}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
           </View>
         )}
       />
@@ -676,22 +817,64 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
         </View>
       </View>
 
-      {/* Floor Plan Images Upload */}
+      {/* Floor Plan Section */}
       <View className="mb-4">
         <View className="flex flex-row items-center justify-between mb-3">
           <Text className="text-base font-rubik-medium text-black-300">
-            Floor Plan Images
+            Floor Plans
           </Text>
           <TouchableOpacity
-            onPress={showImageOptions}
+            onPress={showFloorPlanOptions}
             className="rounded-full w-8 h-8 flex items-center justify-center"
-            style={{ backgroundColor: PRIMARY_COLOR }}>
+            style={{ backgroundColor: PRIMARY_COLOR }}
+          >
             <Text className="text-white text-lg font-bold">+</Text>
           </TouchableOpacity>
         </View>
 
-        {floorPlanImages && floorPlanImages.length > 0 ? (
-          <View>
+        {/* Drawings Section */}
+        {floorPlanDrawings.length > 0 && (
+          <View className="mb-4">
+            <Text className="text-sm font-rubik-medium text-gray-600 mb-2">Drawings</Text>
+            <FlatList
+              data={floorPlanDrawings}
+              renderItem={({ item, index }) => (
+                <View className="relative mr-3">
+                  <DrawingPreview
+                    drawingData={item}
+                    width={96}
+                    height={96}
+                    onPress={() => openDrawingGallery(index)}
+                    style={{ borderWidth: 1, borderColor: '#e5e7eb' }}
+                  />
+                  {/* Edit Button */}
+                  <TouchableOpacity
+                    onPress={() => editDrawing(index)}
+                    className="absolute top-1 left-1 bg-blue-500 rounded-full w-6 h-6 flex items-center justify-center"
+                  >
+                    <Icon name="edit" size={12} color="white" />
+                  </TouchableOpacity>
+                  {/* Delete Button */}
+                  <TouchableOpacity
+                    onPress={() => removeDrawing(index)}
+                    className="absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 flex items-center justify-center"
+                  >
+                    <Text className="text-white text-sm font-bold">×</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              keyExtractor={(item, index) => index.toString()}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 8 }}
+            />
+          </View>
+        )}
+
+        {/* Images Section */}
+        {floorPlanImages && floorPlanImages.length > 0 && (
+          <View className="mb-4">
+            <Text className="text-sm font-rubik-medium text-gray-600 mb-2">Images</Text>
             <FlatList
               data={floorPlanImages}
               renderItem={renderImageItem}
@@ -700,21 +883,127 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingVertical: 8 }}
             />
-            <Text className="text-sm font-rubik text-gray-500 mt-2">
-              {floorPlanImages.length} image(s) • Tap image to view fullscreen
-            </Text>
           </View>
-        ) : (
+        )}
+
+        {/* Empty State */}
+        {(!floorPlanImages || floorPlanImages.length === 0) && floorPlanDrawings.length === 0 && (
           <TouchableOpacity
-            onPress={showImageOptions}
+            onPress={showFloorPlanOptions}
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex items-center justify-center"
           >
-            <Text className="text-4xl mb-2">📋</Text>
-            <Text className="text-base font-rubik-medium text-gray-600">Tap to add floor plan images</Text>
-            <Text className="text-sm font-rubik text-gray-400">Camera • Gallery • Multiple selection</Text>
+            <Text className="text-4xl mb-2">🏗️</Text>
+            <Text className="text-base font-rubik-medium text-gray-600">Create or Upload Floor Plans</Text>
+            <Text className="text-sm font-rubik text-gray-400">Draw • Camera • Gallery</Text>
           </TouchableOpacity>
         )}
+
+        {/* Summary */}
+        {(floorPlanImages?.length > 0 || floorPlanDrawings.length > 0) && (
+          <Text className="text-sm font-rubik text-gray-500 mt-2">
+            {floorPlanDrawings.length} drawing(s) • {floorPlanImages?.length || 0} image(s)
+          </Text>
+        )}
       </View>
+
+      {/* FloorPlanDrawing Component */}
+      <FloorPlanDrawing
+        visible={isDrawingVisible}
+        onClose={() => {
+          setIsDrawingVisible(false);
+          setEditingDrawingIndex(null);
+        }}
+        onSave={handleSaveDrawing}
+        initialDrawing={editingDrawingIndex !== null ? floorPlanDrawings[editingDrawingIndex] : undefined}
+        floorPlanImages={floorPlanImages}
+      />
+
+      {/* Drawing Gallery Modal */}
+      <Modal
+        visible={isDrawingGalleryVisible}
+        animationType="fade"
+        onRequestClose={() => setIsDrawingGalleryVisible(false)}
+      >
+        <View className="flex-1 bg-black">
+          {/* Header */}
+          <View className="absolute top-12 left-0 right-0 z-10 flex flex-row items-center justify-between px-5">
+            <TouchableOpacity
+              onPress={() => setIsDrawingGalleryVisible(false)}
+              className="bg-black/50 rounded-full w-10 h-10 flex items-center justify-center"
+            >
+              <Text className="text-white text-lg font-bold">×</Text>
+            </TouchableOpacity>
+            <Text className="text-white text-base font-rubik-medium">
+              Drawing {selectedDrawingIndex + 1} of {floorPlanDrawings.length}
+            </Text>
+            <View className="flex-row">
+              <TouchableOpacity
+                onPress={() => {
+                  editDrawing(selectedDrawingIndex);
+                  setIsDrawingGalleryVisible(false);
+                }}
+                className="bg-blue-500/80 rounded-full w-10 h-10 flex items-center justify-center mr-2"
+              >
+                <Icon name="edit" size={20} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  removeDrawing(selectedDrawingIndex);
+                  if (floorPlanDrawings.length === 1) {
+                    setIsDrawingGalleryVisible(false);
+                  } else if (selectedDrawingIndex >= floorPlanDrawings.length - 1) {
+                    setSelectedDrawingIndex(Math.max(0, selectedDrawingIndex - 1));
+                  }
+                }}
+                className="bg-red-500/80 rounded-full w-10 h-10 flex items-center justify-center"
+              >
+                <Text className="text-white text-lg font-bold">🗑</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Drawing Gallery */}
+          <FlatList
+            data={floorPlanDrawings}
+            renderItem={({ item }) => (
+              <View style={{ width: screenWidth, height: screenHeight, justifyContent: 'center', alignItems: 'center' }}>
+                <DrawingPreview
+                  drawingData={item}
+                  width={screenWidth - 40}
+                  height={screenHeight * 0.7}
+                  style={{ backgroundColor: 'white' }}
+                />
+              </View>
+            )}
+            keyExtractor={(item, index) => index.toString()}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={selectedDrawingIndex}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+              setSelectedDrawingIndex(index);
+            }}
+            getItemLayout={(data, index) => ({
+              length: screenWidth,
+              offset: screenWidth * index,
+              index,
+            })}
+          />
+
+          {/* Drawing Indicators */}
+          {floorPlanDrawings.length > 1 && (
+            <View className="absolute bottom-12 left-0 right-0 flex flex-row justify-center">
+              {floorPlanDrawings.map((_, index) => (
+                <View
+                  key={index}
+                  className={`w-2 h-2 rounded-full mx-1 ${index === selectedDrawingIndex ? 'bg-white' : 'bg-white/50'}`}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </Modal>
 
       {/* Fullscreen Gallery Modal */}
       <Modal
