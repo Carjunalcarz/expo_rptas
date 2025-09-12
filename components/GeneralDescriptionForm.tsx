@@ -10,7 +10,8 @@ import {
   Modal,
   Dimensions,
   ScrollView,
-  Platform
+  Platform,
+  StatusBar
 } from 'react-native'
 import React, { useState } from 'react'
 import { useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form'
@@ -548,7 +549,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
     </View>
   );
 
-  // Dropdown field as a proper React component to satisfy Hooks rules
+  // Dropdown field using Modal for better z-index handling
   const DropdownField: React.FC<{
     name: string;
     options: string[];
@@ -569,36 +570,100 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
         name={name}
         rules={rules}
         render={({ field: { onChange, value } }) => (
-          <View className="relative">
+          <View>
             <TouchableOpacity
-              onPress={() => setIsOpen(!isOpen)}
+              onPress={() => setIsOpen(true)}
               className={`border rounded-lg px-4 py-3 bg-white flex flex-row items-center justify-between ${fieldError ? 'border-red-500' : 'border-gray-300'}`}
             >
               <Text className={`text-base font-rubik ${value ? 'text-black-300' : 'text-gray-400'}`}>
                 {value || placeholder}
               </Text>
-
-              <Text className="text-gray-600">{isOpen ? '▲' : '▼'}</Text>
+              <Text className="text-gray-600">▼</Text>
             </TouchableOpacity>
 
-            {isOpen && (
-              <View className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-lg mt-1 z-10 max-h-40">
-                <ScrollView nestedScrollEnabled={true}>
-                  {options.map((option, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => {
-                        onChange(option);
-                        setIsOpen(false);
-                      }}
-                      className="px-3 py-2 border-b border-gray-100"
+            <Modal
+              visible={isOpen}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setIsOpen(false)}
+            >
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                activeOpacity={1}
+                onPress={() => setIsOpen(false)}
+              >
+                <View style={{ 
+                  flex: 1, 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  paddingHorizontal: 20
+                }}>
+                  <TouchableOpacity 
+                    activeOpacity={1}
+                    style={{
+                      backgroundColor: 'white',
+                      borderRadius: 12,
+                      maxHeight: screenHeight * 0.6,
+                      width: '100%',
+                      maxWidth: 400,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 8,
+                      elevation: 10,
+                    }}
+                  >
+                    <View style={{ 
+                      paddingVertical: 16, 
+                      paddingHorizontal: 20,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#e5e7eb'
+                    }}>
+                      <Text style={{ 
+                        fontSize: 18, 
+                        fontWeight: '600',
+                        color: '#374151',
+                        textAlign: 'center'
+                      }}>
+                        {placeholder}
+                      </Text>
+                    </View>
+                    
+                    <ScrollView 
+                      style={{ maxHeight: screenHeight * 0.4 }}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
                     >
-                      <Text className="text-base font-rubik text-black-300">{option}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+                      {options.map((option, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          onPress={() => {
+                            onChange(option);
+                            setIsOpen(false);
+                          }}
+                          style={{
+                            paddingVertical: 16,
+                            paddingHorizontal: 20,
+                            borderBottomWidth: index < options.length - 1 ? 1 : 0,
+                            borderBottomColor: '#f3f4f6',
+                            backgroundColor: value === option ? '#f0f9ff' : 'transparent'
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ 
+                            fontSize: 16, 
+                            color: value === option ? '#0369a1' : '#374151',
+                            fontWeight: value === option ? '600' : '400'
+                          }}>
+                            {option}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
           </View>
         )}
       />
