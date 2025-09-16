@@ -1,7 +1,8 @@
+import images from '@/constants/images';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
-
+import * as FileSystem from 'expo-file-system';
 export class FaasPrintService {
   private static formatValue(value: any): string {
     return value === null || value === undefined || value === '' ? '' : String(value);
@@ -20,31 +21,49 @@ export class FaasPrintService {
     return `<div class="row">${fields.map(f => this.renderField(f.label, f.value, f.fullWidth)).join('')}</div>`;
   }
 
-  private static generatePrintHTML(assessment: any): string {
+  private static async getLogoBase64(): Promise<string> {
+    try {
+      // Use Asset.fromModule to get the actual file URI
+      const Asset = require('expo-asset').Asset;
+      const asset = Asset.fromModule(images.pganLogo);
+      await asset.downloadAsync();
+
+      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/png;base64,${base64}`;
+    } catch (error) {
+      console.log('Error loading logo:', error);
+      return '';
+    }
+  }
+
+  private static async generatePrintHTML(assessment: any): Promise<string> {
     const ownerDetails = assessment.owner_details || {};
+    const logoBase64 = await this.getLogoBase64();
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Official FAAS Document</title><style>
-@page{size:legal;margin:.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:9px;line-height:1.3;color:#000;background:white}
+@page{size:legal;margin:.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:14px;line-height:1.4;color:#000;background:white}
 .page-container{max-width:100%;margin:0 auto;background:white;position:relative}
 .official-header{text-align:center;margin-bottom:20px;padding:15px 0;border-bottom:1px solid #ccc;position:relative}
-.government-seal{position:absolute;left:20px;top:10px;width:60px;height:60px;border:1px solid #999;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center;background:#f9f9f9}
+.government-seal{position:absolute;left:20px;top:10px;width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center}
 .republic{font-size:14px;font-weight:bold;margin-bottom:3px;letter-spacing:1px}
 .province,.city{font-size:11px;margin-bottom:2px;font-style:italic}
 .office-title{font-size:10px;font-weight:bold;margin:8px 0;text-transform:uppercase}
 .document-title{font-size:16px;font-weight:bold;margin:12px 0 4px 0;text-transform:uppercase;letter-spacing:2px}
 .document-subtitle{font-size:14px;font-weight:bold;margin-bottom:10px;color:#333}
-.document-number{position:absolute;right:20px;top:20px;font-size:8px;text-align:right}
-.classification{background:#ff0000;color:white;padding:2px 8px;font-size:8px;font-weight:bold;position:absolute;right:20px;top:50px;transform:rotate(-15deg)}
-.section-header{background:linear-gradient(135deg,#4472C4 0%,#2E5A9B 100%);color:white;font-weight:bold;text-align:center;padding:8px;margin:12px 0 6px 0;font-size:10px;border:1px solid #ccc;text-transform:uppercase;letter-spacing:1px;box-shadow:0 1px 2px rgba(0,0,0,0.1)}
+.document-number{position:absolute;right:20px;top:20px;font-size:10px;text-align:right}
+.classification{background:#ff0000;color:white;padding:2px 8px;font-size:10px;font-weight:bold;position:absolute;right:20px;top:50px;transform:rotate(-15deg)}
+.section-header{background:linear-gradient(135deg,#4472C4 0%,#2E5A9B 100%);color:white;font-weight:bold;text-align:center;padding:8px;margin:12px 0 6px 0;font-size:12px;border:1px solid #ccc;text-transform:uppercase;letter-spacing:1px;box-shadow:0 1px 2px rgba(0,0,0,0.1)}
 .row{display:flex;margin-bottom:4px;page-break-inside:avoid}
 .half-width{flex:1;padding:0 3px}.full-width{width:100%;padding:0 3px}
-.field-label{font-size:8px;font-weight:bold;margin-bottom:2px;color:#333;text-transform:uppercase}
-.field-box{border:1px solid #999;padding:4px 6px;min-height:16px;font-size:9px;word-wrap:break-word;background:#fafafa;font-family:'Courier New',monospace}
+.field-label{font-size:10px;font-weight:bold;margin-bottom:2px;color:#333;text-transform:uppercase}
+.field-box{border:1px solid #999;padding:4px 6px;min-height:18px;font-size:16px;font-weight:bold;word-wrap:break-word;background:#fafafa;font-family:'Courier New',monospace}
 .checkbox{font-size:6px;margin:1px 0}
 .struct-grid{display:flex;gap:2px;margin-bottom:6px}
 .struct-col{flex:1;border:1px solid #ccc;padding:6px;background:#fff}
 .struct-header{font-weight:bold;font-size:9px;text-align:center;margin-bottom:6px;background:#e8e8e8;padding:3px;border:1px solid #ddd}
-.page-break-before{page-break-before:always}
+.page-break-before{page-break-before:always;break-before:page}
 .watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:72px;color:rgba(0,0,0,0.05);font-weight:bold;z-index:-1;pointer-events:none}
 .footer-section{margin-top:30px;border-top:1px solid #ccc;padding-top:15px}
 .signature-section{display:flex;justify-content:space-between;margin-top:40px;page-break-inside:avoid}
@@ -58,7 +77,7 @@ export class FaasPrintService {
       <body>
         <div class="watermark">OFFICIAL</div>
         <div class="page-container">
-          ${this.renderOfficialHeader()}
+          ${this.renderOfficialHeader(logoBase64)}
           ${this.renderOwnerSection(assessment, ownerDetails)}
           ${this.renderBuildingLocationSection(assessment)}
           ${this.renderLandReferenceSection(assessment)}
@@ -70,28 +89,27 @@ export class FaasPrintService {
           ${this.renderOfficialFooterSection()}
         </div>
         <div class="document-security">
-          Doc ID: FAAS-${Date.now()} | Generated: ${new Date().toLocaleString()}
+          Doc ID: FAAS-${String(Math.floor(Math.random() * 9000) + 1000)} | Generated: ${new Date().toLocaleString()}
         </div>
       </body>
       </html>
     `;
   }
 
-  private static renderOfficialHeader(): string {
+  private static renderOfficialHeader(logoBase64: string): string {
     return `
       <div class="official-header">
         <div class="government-seal">
-          OFFICIAL<br>SEAL
+          <img src="${logoBase64}" alt="PGAN Logo" style="width:80px;height:80px;object-fit:contain;">
         </div>
         <div class="document-number">
-          Document No.: FAAS-${Date.now()}<br>
+          Document No.: FAAS-${String(Math.floor(Math.random() * 9000) + 1000)}<br>
           Series of ${new Date().getFullYear()}
         </div>
         <div class="classification">OFFICIAL</div>
         
         <div class="republic">REPUBLIC OF THE PHILIPPINES</div>
         <div class="province">Province of Agusan del Norte</div>
-     
         
         <div class="document-title">FIELD APPRAISAL AND ASSESSMENT SHEET</div>
         <div class="document-subtitle">(FAAS)</div>
@@ -165,7 +183,7 @@ ${this.renderRow([{ label: 'Kind of Bldg.', value: gd.kindOfBuilding }, { label:
 ${this.renderRow([{ label: 'Structural Type', value: gd.structuralType }, { label: 'No. of Storeys:', value: gd.numberOfStoreys }])}
 ${this.renderRow([{ label: 'Bldg. Permit No.', value: gd.buildingPermitNo }, { label: 'Total Floor Area', value: gd.totalFloorArea ? `${gd.totalFloorArea} sq.m` : '' }])}
 ${this.renderRow([{ label: 'Date Constructed', value: gd.dateConstructed ? new Date(gd.dateConstructed).toLocaleDateString() : '' }, { label: 'Date Occupied', value: gd.dateOccupied ? new Date(gd.dateOccupied).toLocaleDateString() : '' }])}
-${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: gd.unit_value ? `₱${gd.unit_value}` : '' }])}`;
+${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: gd.unit_value ? `PHP ${gd.unit_value}` : '' }])}`;
   }
 
   private static renderStructuralMaterialsSection(assessment: any): string {
@@ -191,24 +209,24 @@ ${renderStructCol('TRUSS FRAMING', sm.trussFraming)}
     if (!assessment.property_appraisal) return '';
     const pa = assessment.property_appraisal;
     return `<div class="section-header">PROPERTY APPRAISAL</div>
-${this.renderRow([{ label: 'Area', value: pa.area ? `${pa.area} sq.m` : '' }, { label: 'Unit Value', value: pa.unit_value ? `₱${pa.unit_value.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'BUCC', value: pa.bucc }, { label: 'Base Market Value', value: pa.baseMarketValue ? `₱${pa.baseMarketValue.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'Depreciation', value: pa.depreciation }, { label: 'Depreciation Cost', value: pa.depreciationCost ? `₱${pa.depreciationCost.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'Market Value', value: pa.marketValue ? `₱${pa.marketValue.toLocaleString()}` : '', fullWidth: true }])}`;
+${this.renderRow([{ label: 'Area', value: pa.area ? `${pa.area} sq.m` : '' }, { label: 'Unit Value', value: pa.unit_value ? `PHP ${pa.unit_value.toLocaleString()}` : '' }])}
+${this.renderRow([{ label: 'BUCC', value: pa.bucc }, { label: 'Base Market Value', value: pa.baseMarketValue ? `PHP ${pa.baseMarketValue.toLocaleString()}` : '' }])}
+${this.renderRow([{ label: 'Depreciation', value: pa.depreciation }, { label: 'Depreciation Cost', value: pa.depreciationCost ? `PHP ${pa.depreciationCost.toLocaleString()}` : '' }])}
+${this.renderRow([{ label: 'Market Value', value: pa.marketValue ? `PHP ${pa.marketValue.toLocaleString()}` : '', fullWidth: true }])}`;
   }
 
   private static renderAdditionalItemsSection(assessment: any): string {
     if (!assessment.additionalItems?.items?.length) return '';
     return `<div class="section-header">ADDITIONAL ITEMS</div>
-${assessment.additionalItems.items.map((item: any) => this.renderRow([{ label: `${item.label}:`, value: `Qty: ${item.quantity}` }, { label: 'Amount:', value: item.amount ? `₱${item.amount.toLocaleString()}` : '' }])).join('')}
-${this.renderRow([{ label: 'Total Additional:', value: assessment.additionalItems.total ? `₱${assessment.additionalItems.total.toLocaleString()}` : '', fullWidth: true }])}`;
+${assessment.additionalItems.items.map((item: any) => this.renderRow([{ label: `${item.label}:`, value: `Qty: ${item.quantity}` }, { label: 'Amount:', value: item.amount ? `PHP ${item.amount.toLocaleString()}` : '' }])).join('')}
+${this.renderRow([{ label: 'Total Additional:', value: assessment.additionalItems.total ? `PHP ${assessment.additionalItems.total.toLocaleString()}` : '', fullWidth: true }])}`;
   }
 
   private static renderPropertyAssessmentSection(assessment: any): string {
     if (!assessment.property_assessment) return '';
     const pa = assessment.property_assessment;
     return `<div class="page-break-before"></div><div class="section-header">PROPERTY ASSESSMENT</div>
-${this.renderRow([{ label: 'Market Value:', value: pa.market_value ? `₱${pa.market_value.toLocaleString()}` : '' }, { label: 'Assessment Value', value: pa.assessment_value ? `₱${pa.assessment_value.toLocaleString()}` : '' }])}
+${this.renderRow([{ label: 'Market Value:', value: pa.market_value ? `PHP ${pa.market_value.toLocaleString()}` : '' }, { label: 'Assessment Value', value: pa.assessment_value ? `PHP ${pa.assessment_value.toLocaleString()}` : '' }])}
 ${this.renderRow([{ label: 'Building Category', value: pa.building_category }, { label: 'Assessment Level', value: pa.assessment_level ? `${pa.assessment_level}%` : '' }])}
 ${this.renderRow([{ label: 'Taxable', value: pa.taxable ? 'Yes' : 'No' }, { label: 'Total Area', value: pa.total_area ? `${pa.total_area} sq.m` : '' }])}
 ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Effective Quarter', value: pa.eff_quarter }])}`;
@@ -219,7 +237,12 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
 
     return `<div class="footer-section"><div class="legal-notice"><b>LEGAL NOTICE:</b> This is an official government document issued by the Office of the City/Municipal Assessor. Any unauthorized reproduction, alteration, or misuse of this document is punishable by law under the Revised Penal Code and other applicable laws of the Philippines. This document contains confidential information and should be handled accordingly.</div>
 <div class="signature-section">${renderSigBox('APPRAISED BY:', 'Real Property Appraiser')}${renderSigBox('REVIEWED BY:', 'Supervising Appraiser')}${renderSigBox('APPROVED BY:', 'City/Municipal Assessor', 'Position: _______________')}</div>
-<div class="official-seal-area">OFFICIAL SEAL<br>OF THE<br>CITY/MUNICIPAL<br>ASSESSOR</div>
+        <div class="official-seal-area">
+          OFFICIAL SEAL<br>
+          OF THE<br>
+          CITY/MUNICIPAL<br>
+          ASSESSOR
+        </div>
 <div style="text-align:center;margin-top:20px;font-size:8px;border:2px solid #000;padding:10px;background:#f0f0f0"><b style="margin-bottom:5px">CERTIFICATION</b><div>I hereby certify that this Field Appraisal and Assessment Sheet (FAAS) has been prepared in accordance with the provisions of Republic Act No. 7160 (Local Government Code) and other applicable laws and regulations.</div><div style="margin-top:10px">This document is valid for official purposes and legal proceedings.</div></div>
 <div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2024</div><div>Revision: 1.0</div><div>Effective Date: January 1, 2024</div></div></div>`;
   }
@@ -227,7 +250,7 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
   public static async printDocument(assessment: any): Promise<void> {
     try {
       await Print.printAsync({
-        html: this.generatePrintHTML(assessment),
+        html: await this.generatePrintHTML(assessment),
         width: 612,
         height: 792,
       });
@@ -239,9 +262,16 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
   public static async savePDF(assessment: any): Promise<void> {
     try {
       const { uri } = await Print.printToFileAsync({
-        html: this.generatePrintHTML(assessment),
+        html: await this.generatePrintHTML(assessment),
         width: 612,
         height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
       });
 
       if (await Sharing.isAvailableAsync()) {
