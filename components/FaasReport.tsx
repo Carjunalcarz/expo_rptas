@@ -50,6 +50,9 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={true}
+      nestedScrollEnabled={true}
+      keyboardShouldPersistTaps="handled"
     >
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
@@ -546,7 +549,7 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
           <View style={styles.structuralColumn}>
             <Text style={styles.structuralHeader}>FLOORING</Text>
             {structuralMaterials.flooring && structuralMaterials.flooring.map((floor: any, index: number) => (
-              <View key={floor.id || index} style={styles.floorItem}>
+              <View key={`floor-${floor.id || floor.floorName || index}`} style={styles.floorItem}>
                 <Text style={styles.floorName}>{floor.floorName}:</Text>
                 <Text style={styles.floorMaterial}>{floor.material}</Text>
                 {floor.otherSpecify && (
@@ -566,7 +569,7 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
           <View style={styles.structuralColumn}>
             <Text style={styles.structuralHeader}>Walls & Partitions</Text>
             {structuralMaterials.wallsPartitions && structuralMaterials.wallsPartitions.map((wall: any, index: number) => (
-              <View key={wall.id || index} style={styles.wallItem}>
+              <View key={`wall-${wall.id || wall.wallName || index}`} style={styles.wallItem}>
                 <Text style={styles.wallName}>{wall.wallName}:</Text>
                 <Text style={styles.wallMaterial}>{wall.material}</Text>
                 {wall.otherSpecify && (
@@ -697,7 +700,7 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
               <Text style={styles.sectionTitle}>ADDITIONAL ITEMS</Text>
             </View>
             {assessment.additionalItems.items.map((item: any, index: number) => (
-              <View key={item.id || index} style={styles.row}>
+              <View key={`faas-additional-${index}-${item.id || 'no-id'}-${item.label?.replace(/\s+/g, '-') || 'no-label'}`} style={styles.row}>
                 <View style={styles.leftColumn}>
                   <View style={styles.formField}>
                     <Text style={styles.fieldLabel}>{item.label}:</Text>
@@ -824,6 +827,8 @@ const styles = StyleSheet.create({
   contentContainer: {
     alignItems: "center",
     paddingVertical: 20,
+    paddingBottom: 100,
+    flexGrow: 1,
   },
   page: {
     width: 794, // A4 width at 96 DPI (210mm)

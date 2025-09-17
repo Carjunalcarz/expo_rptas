@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 export class FaasPrintService {
+
   private static formatValue(value: any): string {
     return value === null || value === undefined || value === '' ? '' : String(value);
   }
@@ -23,17 +24,63 @@ export class FaasPrintService {
 
   private static async getLogoBase64(): Promise<string> {
     try {
-      // Use Asset.fromModule to get the actual file URI
       const Asset = require('expo-asset').Asset;
       const asset = Asset.fromModule(images.pganLogo);
-      await asset.downloadAsync();
-
-      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+      
+      // Ensure the asset is downloaded
+      if (!asset.downloaded) {
+        await asset.downloadAsync();
+      }
+      
+      // Get the local URI
+      const localUri = asset.localUri || asset.uri;
+      
+      if (!localUri) {
+        throw new Error('Could not get logo URI');
+      }
+      
+      // Check if file exists
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      
+      if (!fileInfo.exists) {
+        throw new Error('Logo file does not exist at URI');
+      }
+      
+      // Read as base64
+      const base64 = await FileSystem.readAsStringAsync(localUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      return `data:image/png;base64,${base64}`;
+      
+      if (!base64) {
+        throw new Error('Failed to convert logo to base64');
+      }
+      
+      // Determine the correct MIME type based on the file
+      const mimeType = localUri.toLowerCase().includes('.png') ? 'image/png' : 
+                     localUri.toLowerCase().includes('.jpg') || localUri.toLowerCase().includes('.jpeg') ? 'image/jpeg' :
+                     localUri.toLowerCase().includes('.webp') ? 'image/webp' : 'image/png';
+      
+      return `data:${mimeType};base64,${base64}`;
     } catch (error) {
-      console.log('Error loading logo:', error);
+      // Try alternative approach with bundled asset path
+      try {
+        const Asset = require('expo-asset').Asset;
+        const bundleUri = Asset.fromModule(images.pganLogo).uri;
+        
+        if (bundleUri) {
+          const base64 = await FileSystem.readAsStringAsync(bundleUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          
+          if (base64) {
+            return `data:image/png;base64,${base64}`;
+          }
+        }
+      } catch (altError) {
+        // Silent fallback
+      }
+      
+      // Final fallback: return empty string (will show placeholder)
       return '';
     }
   }
@@ -97,10 +144,14 @@ export class FaasPrintService {
   }
 
   private static renderOfficialHeader(logoBase64: string): string {
+    const logoContent = logoBase64 
+      ? `<img src="${logoBase64}" alt="PGAN Logo" style="width:80px;height:80px;object-fit:contain;">`
+      : `<div style="width:80px;height:80px;border:2px solid #333;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center;background:#f0f0f0;">PGAN<br>LOGO</div>`;
+    
     return `
       <div class="official-header">
         <div class="government-seal">
-          <img src="${logoBase64}" alt="PGAN Logo" style="width:80px;height:80px;object-fit:contain;">
+          ${logoContent}
         </div>
         <div class="document-number">
           Document No.: FAAS-${String(Math.floor(Math.random() * 9000) + 1000)}<br>
@@ -183,7 +234,7 @@ ${this.renderRow([{ label: 'Kind of Bldg.', value: gd.kindOfBuilding }, { label:
 ${this.renderRow([{ label: 'Structural Type', value: gd.structuralType }, { label: 'No. of Storeys:', value: gd.numberOfStoreys }])}
 ${this.renderRow([{ label: 'Bldg. Permit No.', value: gd.buildingPermitNo }, { label: 'Total Floor Area', value: gd.totalFloorArea ? `${gd.totalFloorArea} sq.m` : '' }])}
 ${this.renderRow([{ label: 'Date Constructed', value: gd.dateConstructed ? new Date(gd.dateConstructed).toLocaleDateString() : '' }, { label: 'Date Occupied', value: gd.dateOccupied ? new Date(gd.dateOccupied).toLocaleDateString() : '' }])}
-${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: gd.unit_value ? `PHP ${gd.unit_value}` : '' }])}`;
+${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: gd.unit_value ? `PHP ${Number(gd.unit_value).toLocaleString()}` : '' }])}`;
   }
 
   private static renderStructuralMaterialsSection(assessment: any): string {
@@ -244,7 +295,7 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
           ASSESSOR
         </div>
 <div style="text-align:center;margin-top:20px;font-size:8px;border:2px solid #000;padding:10px;background:#f0f0f0"><b style="margin-bottom:5px">CERTIFICATION</b><div>I hereby certify that this Field Appraisal and Assessment Sheet (FAAS) has been prepared in accordance with the provisions of Republic Act No. 7160 (Local Government Code) and other applicable laws and regulations.</div><div style="margin-top:10px">This document is valid for official purposes and legal proceedings.</div></div>
-<div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2024</div><div>Revision: 1.0</div><div>Effective Date: January 1, 2024</div></div></div>`;
+<div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2026</div><div>Revision: 6th</div><div>Effective Date: January 1, ${new Date().getFullYear()}</div></div></div>`;
   }
 
   public static async printDocument(assessment: any): Promise<void> {
