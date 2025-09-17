@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, Alert, Share } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import FaasReport from './FaasReport';
+import FaasReport from './FaasReportSimple';
 
 interface FaasReportModalProps {
   visible: boolean;
@@ -45,10 +46,10 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row',
@@ -59,7 +60,6 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
           backgroundColor: 'white',
           borderBottomWidth: 1,
           borderBottomColor: '#e5e7eb',
-          paddingTop: 50, // Account for status bar
         }}>
           <TouchableOpacity
             onPress={onClose}
@@ -91,10 +91,8 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
         </View>
 
         {/* Report Content */}
-        <View style={{ flex: 1 }}>
-          <FaasReport assessment={assessment} />
-        </View>
-      </View>
+        <FaasReport assessment={assessment} />
+      </SafeAreaView>
     </Modal>
   );
 };

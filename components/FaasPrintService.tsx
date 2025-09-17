@@ -1,8 +1,10 @@
-import images from '@/constants/images';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
+import pgan_logo from '@/assets/images/pgan_logo.png';
+
 export class FaasPrintService {
 
   private static formatValue(value: any): string {
@@ -24,63 +26,13 @@ export class FaasPrintService {
 
   private static async getLogoBase64(): Promise<string> {
     try {
-      const Asset = require('expo-asset').Asset;
-      const asset = Asset.fromModule(images.pganLogo);
-      
-      // Ensure the asset is downloaded
-      if (!asset.downloaded) {
-        await asset.downloadAsync();
-      }
-      
-      // Get the local URI
-      const localUri = asset.localUri || asset.uri;
-      
-      if (!localUri) {
-        throw new Error('Could not get logo URI');
-      }
-      
-      // Check if file exists
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      
-      if (!fileInfo.exists) {
-        throw new Error('Logo file does not exist at URI');
-      }
-      
-      // Read as base64
-      const base64 = await FileSystem.readAsStringAsync(localUri, {
+      const asset = Asset.fromModule(pgan_logo);
+      await asset.downloadAsync();
+      const base64 = await FileSystem.readAsStringAsync(asset.localUri!, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      
-      if (!base64) {
-        throw new Error('Failed to convert logo to base64');
-      }
-      
-      // Determine the correct MIME type based on the file
-      const mimeType = localUri.toLowerCase().includes('.png') ? 'image/png' : 
-                     localUri.toLowerCase().includes('.jpg') || localUri.toLowerCase().includes('.jpeg') ? 'image/jpeg' :
-                     localUri.toLowerCase().includes('.webp') ? 'image/webp' : 'image/png';
-      
-      return `data:${mimeType};base64,${base64}`;
-    } catch (error) {
-      // Try alternative approach with bundled asset path
-      try {
-        const Asset = require('expo-asset').Asset;
-        const bundleUri = Asset.fromModule(images.pganLogo).uri;
-        
-        if (bundleUri) {
-          const base64 = await FileSystem.readAsStringAsync(bundleUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          if (base64) {
-            return `data:image/png;base64,${base64}`;
-          }
-        }
-      } catch (altError) {
-        // Silent fallback
-      }
-      
-      // Final fallback: return empty string (will show placeholder)
+      return `data:image/png;base64,${base64}`;
+    } catch {
       return '';
     }
   }
@@ -93,7 +45,7 @@ export class FaasPrintService {
 @page{size:legal;margin:.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:14px;line-height:1.4;color:#000;background:white}
 .page-container{max-width:100%;margin:0 auto;background:white;position:relative}
 .official-header{text-align:center;margin-bottom:20px;padding:15px 0;border-bottom:1px solid #ccc;position:relative}
-.government-seal{position:absolute;left:20px;top:10px;width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center}
+.government-seal{position:absolute;left:20px;top:10px;width:80px;height:80px;display:flex;align-items:center;justify-content:center}
 .republic{font-size:14px;font-weight:bold;margin-bottom:3px;letter-spacing:1px}
 .province,.city{font-size:11px;margin-bottom:2px;font-style:italic}
 .office-title{font-size:10px;font-weight:bold;margin:8px 0;text-transform:uppercase}
@@ -144,9 +96,11 @@ export class FaasPrintService {
   }
 
   private static renderOfficialHeader(logoBase64: string): string {
-    const logoContent = logoBase64 
-      ? `<img src="${logoBase64}" alt="PGAN Logo" style="width:80px;height:80px;object-fit:contain;">`
-      : `<div style="width:80px;height:80px;border:2px solid #333;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center;background:#f0f0f0;">PGAN<br>LOGO</div>`;
+    const logoContent = logoBase64
+      ? `<img src="${logoBase64}" style="width:80px;height:80px;border-radius:50%;border:2px solid #ccc;" />`
+      : `<div style="width:80px;height:80px;border:3px solid #1a365d;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;text-align:center;background:#f7fafc;color:#1a365d;">
+          <div>PGAN<br/>SEAL</div>
+        </div>`;
     
     return `
       <div class="official-header">
