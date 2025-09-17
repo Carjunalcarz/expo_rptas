@@ -53,6 +53,9 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
       showsVerticalScrollIndicator={true}
       nestedScrollEnabled={true}
       keyboardShouldPersistTaps="handled"
+      bounces={true}
+      alwaysBounceVertical={false}
+      scrollEventThrottle={16}
     >
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
@@ -825,13 +828,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   contentContainer: {
-    alignItems: "center",
+    flexGrow: 1,
     paddingVertical: 20,
     paddingBottom: 100,
-    flexGrow: 1,
   },
   page: {
-    width: 794, // A4 width at 96 DPI (210mm)
+    width: '100%', // Make responsive for mobile
+    maxWidth: 794, // A4 width at 96 DPI (210mm) for larger screens
     backgroundColor: "#fff",
     marginBottom: 20,
     padding: 20,

@@ -88,45 +88,12 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
           }}>
             FAAS Report
           </Text>
-
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              onPress={handleShare}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#3b82f6',
-              }}
-            >
-              <Icon name="share" size={20} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleExportPDF}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#059669',
-              }}
-            >
-              <Icon name="picture-as-pdf" size={20} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handlePrint}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#6b7280',
-              }}
-            >
-              <Icon name="print" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Report Content */}
-        <FaasReport assessment={assessment} />
+        <View style={{ flex: 1 }}>
+          <FaasReport assessment={assessment} />
+        </View>
       </View>
     </Modal>
   );
