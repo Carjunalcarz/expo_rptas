@@ -22,6 +22,13 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
         return String(value);
     };
 
+    const formatCurrency = (value: any) => {
+        if (value === null || value === undefined || value === '') return '';
+        const numValue = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : Number(value);
+        if (isNaN(numValue)) return String(value);
+        return `PHP ${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
     const handlePrint = async () => {
         await FaasPrintService.printDocument(assessment);
     };
@@ -30,12 +37,23 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
         await FaasPrintService.savePDF(assessment);
     };
 
-    const renderFormField = (label: string, value: any, width: string = '48%') => (
-        <View style={[styles.formField, { width: width as any }]}>
+
+    const renderFormField = (label: string, value: any, fullWidth: boolean = false) => (
+        <View style={[styles.formField, fullWidth && styles.fullWidthField]}>
             <Text style={styles.fieldLabel}>{label}</Text>
             <View style={styles.fieldBox}>
                 <Text style={styles.fieldValue}>{formatValue(value)}</Text>
             </View>
+        </View>
+    );
+
+    const renderMobileRow = (fields: Array<{ label: string, value: any, fullWidth?: boolean }>) => (
+        <View style={styles.mobileRow}>
+            {fields.map((field, index) => (
+                <View key={index} style={field.fullWidth ? styles.fullWidthField : styles.halfWidthField}>
+                    {renderFormField(field.label, field.value, field.fullWidth)}
+                </View>
+            ))}
         </View>
     );
 
@@ -55,15 +73,6 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                 contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={true}
             >
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
-                        <Text style={styles.buttonText}>🖨️ Print</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.pdfButton} onPress={handleSavePDF}>
-                        <Text style={styles.buttonText}>📄 Save PDF</Text>
-                    </TouchableOpacity>
-                </View>
 
                 {/* Report Content */}
                 <View style={styles.reportContent}>
@@ -109,7 +118,7 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                             {renderFormField('TD / ARP No.', ownerDetails.tdArp || assessment.tdArp)}
                             {renderFormField('TRANSACTION CODE', ownerDetails.transactionCode || assessment.transactionCode)}
                         </View>
-                        {renderFormField('PIN', ownerDetails.pin || assessment.pin, '100%')}
+                        {renderFormField('PIN', ownerDetails.pin || assessment.pin, true)}
                     </View>
 
                     {/* Owner Section */}
@@ -143,12 +152,12 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                     {/* Building Location */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>BUILDING LOCATION</Text>
-                        {renderFormField('No./Street', buildingLocation.street, '100%')}
+                        {renderFormField('No./Street', buildingLocation.street, true)}
                         <View style={styles.row}>
                             {renderFormField('Barangay', buildingLocation.barangay)}
                             {renderFormField('City/Municipality', buildingLocation.municipality)}
                         </View>
-                        {renderFormField('Province', buildingLocation.province, '100%')}
+                        {renderFormField('Province', buildingLocation.province, true)}
                     </View>
 
                     {/* Land Reference */}
@@ -166,7 +175,7 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                             {renderFormField('Survey No.:', landReference.surveyNumber)}
                             {renderFormField('TDN/ARP No.:', landReference.tdnArpNumber)}
                         </View>
-                        {renderFormField('Area:', landReference.area ? `${landReference.area} sq.m` : '', '100%')}
+                        {renderFormField('Area:', landReference.area ? `${landReference.area} sq.m` : '', true)}
                     </View>
 
                     {/* General Description */}
@@ -204,79 +213,89 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                     {/* Structural Materials */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>STRUCTURAL MATERIALS (Checklists)</Text>
-                        <View style={styles.structuralGrid}>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>FOUNDATION</Text>
-                                {Object.entries(structuralMaterials.foundation || {}).map(([key, value], index) =>
-                                    <View key={`foundation-${key}-${index}`}>
-                                        {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
-                                    </View>
-                                )}
-                            </View>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>COLUMNS</Text>
-                                {Object.entries(structuralMaterials.columns || {}).map(([key, value], index) =>
-                                    <View key={`columns-${key}-${index}`}>
-                                        {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
-                                    </View>
-                                )}
-                            </View>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>BEAMS</Text>
-                                {Object.entries(structuralMaterials.beams || {}).map(([key, value], index) =>
-                                    <View key={`beams-${key}-${index}`}>
-                                        {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
-                                    </View>
-                                )}
-                            </View>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>TRUSS FRAMING</Text>
-                                {Object.entries(structuralMaterials.trussFraming || {}).map(([key, value], index) =>
-                                    <View key={`truss-${key}-${index}`}>
-                                        {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
-                                    </View>
-                                )}
-                            </View>
+                        
+                        {/* Foundation */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>FOUNDATION</Text>
+                            {Object.entries(structuralMaterials.foundation || {}).map(([key, value], index) =>
+                                <View key={`foundation-${key}-${index}`}>
+                                    {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
+                                </View>
+                            )}
                         </View>
-                        <View style={styles.structuralGrid}>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>ROOF</Text>
-                                {['reinforceConcrete', 'tiles', 'giSheet', 'aluminum', 'asbestos', 'longSpan', 'concreteDesk', 'nipaAnahawCogon', 'others'].map((key, index) =>
-                                    <View key={`roof-${key}-${index}`}>
-                                        {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), structuralMaterials.roof?.[key] || false)}
+
+                        {/* Columns */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>COLUMNS</Text>
+                            {Object.entries(structuralMaterials.columns || {}).map(([key, value], index) =>
+                                <View key={`columns-${key}-${index}`}>
+                                    {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Beams */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>BEAMS</Text>
+                            {Object.entries(structuralMaterials.beams || {}).map(([key, value], index) =>
+                                <View key={`beams-${key}-${index}`}>
+                                    {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Truss Framing */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>TRUSS FRAMING</Text>
+                            {Object.entries(structuralMaterials.trussFraming || {}).map(([key, value], index) =>
+                                <View key={`truss-${key}-${index}`}>
+                                    {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value as boolean)}
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Roof */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>ROOF</Text>
+                            {['reinforceConcrete', 'tiles', 'giSheet', 'aluminum', 'asbestos', 'longSpan', 'concreteDesk', 'nipaAnahawCogon', 'others'].map((key, index) =>
+                                <View key={`roof-${key}-${index}`}>
+                                    {renderCheckbox(key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), structuralMaterials.roof?.[key] || false)}
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Flooring */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>FLOORING</Text>
+                            {structuralMaterials.flooring?.map ?
+                                structuralMaterials.flooring.map((f: any, index: number) => (
+                                    <View key={`flooring-${index}`} style={styles.floorItem}>
+                                        <Text style={styles.floorName}>{f.floorName}:</Text>
+                                        <Text style={styles.floorMaterial}>{f.material}</Text>
                                     </View>
-                                )}
-                            </View>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>FLOORING</Text>
-                                {structuralMaterials.flooring?.map ?
-                                    structuralMaterials.flooring.map((f: any, index: number) => (
-                                        <View key={`flooring-${index}`} style={styles.floorItem}>
-                                            <Text style={styles.floorName}>{f.floorName}:</Text>
-                                            <Text style={styles.floorMaterial}>{f.material}</Text>
-                                        </View>
-                                    )) :
-                                    <>
-                                        {renderCheckbox('Reinforced Concrete', false)}
-                                        {renderCheckbox('Tiles (Ceramic)', false)}
-                                    </>
-                                }
-                            </View>
-                            <View style={styles.checkboxColumn}>
-                                <Text style={styles.checkboxColumnTitle}>Walls & Partitions</Text>
-                                {structuralMaterials.wallsPartitions?.map ?
-                                    structuralMaterials.wallsPartitions.map((w: any, index: number) => (
-                                        <View key={`walls-${index}`} style={styles.floorItem}>
-                                            <Text style={styles.floorName}>{w.wallName}:</Text>
-                                            <Text style={styles.floorMaterial}>{w.material}</Text>
-                                        </View>
-                                    )) :
-                                    <>
-                                        {renderCheckbox('Concrete Hollow Blocks (CHB)', false)}
-                                        {renderCheckbox('Others (Specify)', false)}
-                                    </>
-                                }
-                            </View>
+                                )) :
+                                <>
+                                    {renderCheckbox('Reinforced Concrete', false)}
+                                    {renderCheckbox('Tiles (Ceramic)', false)}
+                                </>
+                            }
+                        </View>
+
+                        {/* Walls & Partitions */}
+                        <View style={styles.mobileCheckboxSection}>
+                            <Text style={styles.checkboxColumnTitle}>Walls & Partitions</Text>
+                            {structuralMaterials.wallsPartitions?.map ?
+                                structuralMaterials.wallsPartitions.map((w: any, index: number) => (
+                                    <View key={`walls-${index}`} style={styles.floorItem}>
+                                        <Text style={styles.floorName}>{w.wallName}:</Text>
+                                        <Text style={styles.floorMaterial}>{w.material}</Text>
+                                    </View>
+                                )) :
+                                <>
+                                    {renderCheckbox('Concrete Hollow Blocks (CHB)', false)}
+                                    {renderCheckbox('Others (Specify)', false)}
+                                </>
+                            }
                         </View>
                     </View>
 
@@ -286,17 +305,17 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                             <Text style={styles.sectionTitle}>PROPERTY APPRAISAL</Text>
                             <View style={styles.row}>
                                 {renderFormField('Area', propertyAppraisal.area ? `${propertyAppraisal.area} sq.m` : '')}
-                                {renderFormField('Unit Value', propertyAppraisal.unit_value ? `PHP ${propertyAppraisal.unit_value.toLocaleString()}` : '')}
+                                {renderFormField('Unit Value', formatCurrency(propertyAppraisal.unit_value))}
                             </View>
                             <View style={styles.row}>
                                 {renderFormField('BUCC', propertyAppraisal.bucc)}
-                                {renderFormField('Base Market Value', propertyAppraisal.baseMarketValue ? `PHP ${propertyAppraisal.baseMarketValue.toLocaleString()}` : '')}
+                                {renderFormField('Base Market Value', formatCurrency(propertyAppraisal.baseMarketValue))}
                             </View>
                             <View style={styles.row}>
                                 {renderFormField('Depreciation', propertyAppraisal.depreciation)}
-                                {renderFormField('Depreciation Cost', propertyAppraisal.depreciationCost ? `PHP ${propertyAppraisal.depreciationCost.toLocaleString()}` : '')}
+                                {renderFormField('Depreciation Cost', formatCurrency(propertyAppraisal.depreciationCost))}
                             </View>
-                            {renderFormField('Market Value', propertyAppraisal.marketValue ? `PHP ${propertyAppraisal.marketValue.toLocaleString()}` : '', '100%')}
+                            {renderFormField('Market Value', formatCurrency(propertyAppraisal.marketValue), true)}
                         </View>
                     )}
 
@@ -305,12 +324,13 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>ADDITIONAL ITEMS</Text>
                             {assessment.additionalItems.items.map((item: any, index: number) => (
-                                <View key={`additional-${index}`} style={styles.row}>
-                                    {renderFormField(`${item.label}:`, `Qty: ${item.quantity}`)}
-                                    {renderFormField('Amount:', item.amount ? `PHP ${item.amount.toLocaleString()}` : '')}
+                                <View key={`additional-${index}`} style={styles.additionalItemContainer}>
+                                    <Text style={styles.additionalItemTitle}>{item.label}</Text>
+                                    {renderFormField('Quantity:', `${item.quantity}`)}
+                                    {renderFormField('Amount:', formatCurrency(item.amount))}
                                 </View>
                             ))}
-                            {renderFormField('Total Additional:', assessment.additionalItems.total ? `PHP ${assessment.additionalItems.total.toLocaleString()}` : '', '100%')}
+                            {renderFormField('Total Additional:', formatCurrency(assessment.additionalItems.total), true)}
                         </View>
                     )}
 
@@ -318,22 +338,14 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                     {propertyAssessment && Object.keys(propertyAssessment).length > 0 && (
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>PROPERTY ASSESSMENT</Text>
-                            <View style={styles.row}>
-                                {renderFormField('Market Value:', propertyAssessment.market_value ? `PHP ${propertyAssessment.market_value.toLocaleString()}` : '')}
-                                {renderFormField('Assessment Value', propertyAssessment.assessment_value ? `PHP ${propertyAssessment.assessment_value.toLocaleString()}` : '')}
-                            </View>
-                            <View style={styles.row}>
-                                {renderFormField('Building Category', propertyAssessment.building_category)}
-                                {renderFormField('Assessment Level', propertyAssessment.assessment_level ? `${propertyAssessment.assessment_level}%` : '')}
-                            </View>
-                            <View style={styles.row}>
-                                {renderFormField('Taxable', propertyAssessment.taxable ? 'Yes' : 'No')}
-                                {renderFormField('Total Area', propertyAssessment.total_area ? `${propertyAssessment.total_area} sq.m` : '')}
-                            </View>
-                            <View style={styles.row}>
-                                {renderFormField('Effective Year', propertyAssessment.eff_year)}
-                                {renderFormField('Effective Quarter', propertyAssessment.eff_quarter)}
-                            </View>
+                            {renderFormField('Market Value:', formatCurrency(propertyAssessment.market_value))}
+                            {renderFormField('Assessment Value', formatCurrency(propertyAssessment.assessment_value))}
+                            {renderFormField('Building Category', propertyAssessment.building_category)}
+                            {renderFormField('Assessment Level', propertyAssessment.assessment_level ? `${propertyAssessment.assessment_level}%` : '')}
+                            {renderFormField('Taxable', propertyAssessment.taxable ? 'Yes' : 'No')}
+                            {renderFormField('Total Area', propertyAssessment.total_area ? `${propertyAssessment.total_area} sq.m` : '')}
+                            {renderFormField('Effective Year', propertyAssessment.eff_year)}
+                            {renderFormField('Effective Quarter', propertyAssessment.eff_quarter)}
                         </View>
                     )}
 
@@ -399,6 +411,16 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
                     </View>
                 </View>
             </ScrollView>
+            
+            {/* Floating Action Buttons */}
+            <View style={styles.floatingButtons}>
+                <TouchableOpacity style={styles.floatingPrintButton} onPress={handlePrint}>
+                    <Text style={styles.floatingButtonText}>🖨️</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.floatingShareButton} onPress={handleSavePDF}>
+                    <Text style={styles.floatingButtonText}>📄</Text>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 };
@@ -406,14 +428,42 @@ const FaasReport: React.FC<FaasReportProps> = ({ assessment }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#f5f5f5',
     },
     scrollView: {
         flex: 1,
     },
     contentContainer: {
         padding: 16,
-        paddingBottom: 100,
+        paddingBottom: 120,
+    },
+    // Mobile-friendly layout styles
+    mobileRow: {
+        flexDirection: 'column',
+        marginBottom: 12,
+    },
+    halfWidthField: {
+        marginBottom: 8,
+    },
+    fullWidthField: {
+        width: '100%',
+        marginBottom: 8,
+    },
+    // Additional Items Styles
+    additionalItemContainer: {
+        backgroundColor: '#f8f9fa',
+        borderRadius: 6,
+        padding: 12,
+        marginBottom: 12,
+        borderLeftWidth: 3,
+        borderLeftColor: '#4472C4',
+    },
+    additionalItemTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#4472C4',
+        marginBottom: 8,
+        textTransform: 'uppercase',
     },
     actionButtons: {
         flexDirection: 'row',
@@ -435,6 +485,26 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         elevation: 2,
     },
+    saveButton: {
+        backgroundColor: '#4CAF50',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        elevation: 2,
+    },
+    testButton: {
+        backgroundColor: '#FF9800',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        elevation: 2,
+    },
+    secondaryButtons: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginBottom: 20,
+        paddingHorizontal: 20,
+    },
     buttonText: {
         color: '#fff',
         fontSize: 16,
@@ -443,34 +513,38 @@ const styles = StyleSheet.create({
     },
     reportContent: {
         backgroundColor: '#fff',
-        borderRadius: 8,
+        borderRadius: 12,
         padding: 16,
-        elevation: 1,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        marginBottom: 16,
     },
-    // Official Header Styles
+    // Official Header Styles - Mobile Optimized
     officialHeader: {
-        flexDirection: 'row',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-        paddingBottom: 15,
+        marginBottom: 16,
+        paddingBottom: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#ccc',
     },
     logoContainer: {
-        width: 80,
-        height: 80,
+        width: 60,
+        height: 60,
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: 8,
     },
     logoImage: {
-        width: 80,
-        height: 80,
+        width: 60,
+        height: 60,
     },
     headerCenter: {
-        flex: 1,
         alignItems: 'center',
-        marginHorizontal: 20,
+        marginBottom: 8,
     },
     republic: {
         fontSize: 14,
@@ -484,23 +558,24 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
     title: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: 'bold',
-        marginTop: 12,
+        marginTop: 8,
         marginBottom: 4,
         textTransform: 'uppercase',
-        letterSpacing: 2,
+        letterSpacing: 1,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: 'bold',
-        marginBottom: 10,
+        marginBottom: 8,
         color: '#333',
         textAlign: 'center',
     },
     documentInfo: {
-        alignItems: 'flex-end',
+        alignItems: 'center',
+        width: '100%',
     },
     docNumber: {
         fontSize: 10,
@@ -520,6 +595,45 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 10,
         fontWeight: 'bold',
+    },
+    // Floating Action Button Styles
+    floatingButtons: {
+        position: 'absolute',
+        bottom: 20,
+        right: 20,
+        flexDirection: 'column',
+        gap: 12,
+    },
+    floatingPrintButton: {
+        backgroundColor: '#4CAF50',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+    },
+    floatingShareButton: {
+        backgroundColor: '#2196F3',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+    },
+    floatingButtonText: {
+        color: '#fff',
+        fontSize: 20,
+        textAlign: 'center',
     },
     // Property Index Section
     propertyIndexSection: {
@@ -561,52 +675,68 @@ const styles = StyleSheet.create({
         fontSize: 10,
         marginLeft: 8,
     },
-    // Section Styles
+    // Section Styles - Mobile Optimized
     section: {
-        marginBottom: 24,
+        marginBottom: 20,
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        padding: 12,
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
     },
     sectionTitle: {
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: 'bold',
         backgroundColor: '#4472C4',
         color: '#fff',
-        padding: 8,
+        padding: 12,
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
         textTransform: 'uppercase',
         letterSpacing: 1,
+        borderRadius: 6,
     },
     row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
+        flexDirection: 'column',
+        marginBottom: 12,
     },
     formField: {
-        marginBottom: 8,
+        marginBottom: 12,
     },
     fieldLabel: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 'bold',
-        marginBottom: 2,
+        marginBottom: 4,
         color: '#333',
         textTransform: 'uppercase',
     },
     fieldBox: {
         borderWidth: 1,
-        borderColor: '#999',
-        padding: 4,
-        minHeight: 18,
+        borderColor: '#ddd',
+        padding: 12,
+        minHeight: 44,
         backgroundColor: '#fafafa',
+        borderRadius: 6,
     },
     fieldValue: {
-        fontSize: 12,
-        fontWeight: 'bold',
+        fontSize: 14,
+        fontWeight: '500',
         color: '#000',
+        lineHeight: 20,
     },
-    // Checkbox Styles
+    // Checkbox Styles - Mobile Optimized
     checkboxSection: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+    },
+    mobileCheckboxSection: {
+        marginBottom: 16,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 6,
+        padding: 12,
     },
     checkboxColumn: {
         flex: 1,
@@ -617,36 +747,39 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     checkboxColumnTitle: {
-        fontSize: 9,
+        fontSize: 12,
         fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 6,
-        backgroundColor: '#e8e8e8',
-        padding: 3,
-        borderWidth: 1,
-        borderColor: '#ddd',
+        textAlign: 'left',
+        marginBottom: 12,
+        color: '#4472C4',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     checkboxRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 1,
+        marginBottom: 8,
+        paddingVertical: 4,
     },
     checkbox: {
-        width: 12,
-        height: 12,
+        width: 18,
+        height: 18,
         borderWidth: 1,
         borderColor: '#333',
-        marginRight: 4,
+        marginRight: 8,
         alignItems: 'center',
         justifyContent: 'center',
+        borderRadius: 3,
     },
     checkboxMark: {
-        fontSize: 8,
+        fontSize: 12,
         fontWeight: 'bold',
+        color: '#4472C4',
     },
     checkboxLabel: {
-        fontSize: 10,
+        fontSize: 13,
         flex: 1,
+        lineHeight: 18,
     },
     // Footer Styles
     footerSection: {

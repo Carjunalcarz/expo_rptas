@@ -7,7 +7,7 @@ import FaasReport from '../../components/FaasReportSimple';
 
 const FaasReportScreen = () => {
   const params = useLocalSearchParams();
-  
+
   // Parse the assessment data from params
   const assessment = params.assessment ? JSON.parse(params.assessment as string) : null;
 
@@ -68,14 +68,6 @@ const FaasReportScreen = () => {
           <Icon name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>FAAS Report</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleShare} style={styles.actionButton}>
-            <Icon name="share" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handlePrint} style={styles.actionButton}>
-            <Icon name="print" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* FAAS Report Content */}
