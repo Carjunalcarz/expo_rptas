@@ -350,7 +350,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                                 <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
                                     <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 }}>Flooring</Text>
                                     {assessment.structural_materials.flooring.map((f: any, i: number) => (
-                                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                                        <View key={`flooring-${f.id || f.floorName || i}`} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
                                             <Text style={{ fontSize: 12, color: '#6b7280' }}>{f.floorName}</Text>
                                             <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{f.material || '-'}</Text>
                                         </View>
@@ -361,7 +361,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                                 <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
                                     <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 }}>Walls / Partitions</Text>
                                     {assessment.structural_materials.wallsPartitions.map((w: any, i: number) => (
-                                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                                        <View key={`walls-${w.id || w.wallName || i}`} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
                                             <Text style={{ fontSize: 12, color: '#6b7280' }}>{w.wallName}</Text>
                                             <Text style={{ fontSize: 12, fontWeight: '500', color: '#374151' }}>{w.material || '-'}</Text>
                                         </View>
@@ -387,7 +387,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                         <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
                             {Array.isArray(assessment?.additionalItems?.items) && assessment.additionalItems.items.length > 0 ? (
                                 assessment.additionalItems.items.map((it: any, i: number) => (
-                                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                                    <View key={`sections-additional-${i}-${it.id || 'no-id'}-${it.label?.replace(/\s+/g, '-') || 'no-label'}`} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
                                         <Text style={{ fontSize: 14, color: '#374156' }}>{it.label + (it.quantity > 1 ? ` (${it.quantity})` : '') || `Item ${i + 1}`}</Text>
                                         <Text style={{ fontSize: 14, color: '#374156' }}>{new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(it.amount) || 0)}</Text>
                                     </View>

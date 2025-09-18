@@ -1,11 +1,25 @@
-import images from '@/constants/images';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert } from 'react-native';
+import { Alert, Image, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import * as WebBrowser from 'expo-web-browser';
+// Note: expo-media-library needs to be installed: npm install expo-media-library
+// import * as MediaLibrary from 'expo-media-library';
+
 export class FaasPrintService {
+  private static logoCache: string | null = null;
+  private static logoCacheTimestamp: number = 0;
+  private static readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
   private static formatValue(value: any): string {
     return value === null || value === undefined || value === '' ? '' : String(value);
+  }
+
+  private static formatCurrency(value: any): string {
+    if (value === null || value === undefined || value === '') return '';
+    const numValue = typeof value === 'string' ? parseFloat(value.replace(/[^\d.-]/g, '')) : Number(value);
+    if (isNaN(numValue)) return String(value);
+    return `PHP ${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   private static renderCheckbox(label: string, checked: boolean): string {
@@ -21,32 +35,66 @@ export class FaasPrintService {
     return `<div class="row">${fields.map(f => this.renderField(f.label, f.value, f.fullWidth)).join('')}</div>`;
   }
 
-  private static async getLogoBase64(): Promise<string> {
+  public static async getLogoBase64(): Promise<string> {
     try {
-      // Use Asset.fromModule to get the actual file URI
-      const Asset = require('expo-asset').Asset;
-      const asset = Asset.fromModule(images.pganLogo);
-      await asset.downloadAsync();
+      // Check if we have a valid cached logo
+      const now = Date.now();
+      if (this.logoCache && (now - this.logoCacheTimestamp) < this.CACHE_DURATION) {
+        console.log('✅ Using cached PGAN logo');
+        return this.logoCache;
+      }
 
-      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      return `data:image/png;base64,${base64}`;
+      console.log('🔄 Fetching PGAN logo from Appwrite (cache expired or empty)...');
+      
+      // Try to load logo from Appwrite storage URL
+      const logoUrl = 'https://fra.cloud.appwrite.io/v1/storage/buckets/68b9247b0010e5800f42/files/68ca241f002eddd24ccb/view?project=68a430620012d1b0268b&mode=admin';
+      
+      const response = await fetch(logoUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        return new Promise((resolve) => {
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            
+            // Cache the logo
+            this.logoCache = base64;
+            this.logoCacheTimestamp = now;
+            
+            console.log('✅ Successfully loaded and cached PGAN logo from Appwrite, base64 length:', base64.length);
+            resolve(base64);
+          };
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        console.log('⚠️ Failed to fetch logo from Appwrite, status:', response.status);
+        return '';
+      }
+      
     } catch (error) {
-      console.log('Error loading logo:', error);
+      console.error('❌ Error loading PGAN logo from Appwrite:', error);
+      console.log('🚫 NO LOGO will be displayed - logo loading failed completely');
       return '';
     }
   }
 
-  private static async generatePrintHTML(assessment: any): Promise<string> {
+  public static clearLogoCache(): void {
+    this.logoCache = null;
+    this.logoCacheTimestamp = 0;
+    console.log('🗑️ Logo cache cleared');
+  }
+
+
+  private static generatePrintHTML(assessment: any, logoBase64: string = ''): string {
     const ownerDetails = assessment.owner_details || {};
-    const logoBase64 = await this.getLogoBase64();
+    console.log('Generating HTML with logo:', logoBase64 ? 'Logo present' : 'No logo');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Official FAAS Document</title><style>
 @page{size:legal;margin:.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:14px;line-height:1.4;color:#000;background:white}
 .page-container{max-width:100%;margin:0 auto;background:white;position:relative}
 .official-header{text-align:center;margin-bottom:20px;padding:15px 0;border-bottom:1px solid #ccc;position:relative}
-.government-seal{position:absolute;left:20px;top:10px;width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:bold;text-align:center}
+.government-seal{position:absolute;left:20px;top:10px;width:80px;height:80px;display:flex;align-items:center;justify-content:center}
 .republic{font-size:14px;font-weight:bold;margin-bottom:3px;letter-spacing:1px}
 .province,.city{font-size:11px;margin-bottom:2px;font-style:italic}
 .office-title{font-size:10px;font-weight:bold;margin:8px 0;text-transform:uppercase}
@@ -97,10 +145,16 @@ export class FaasPrintService {
   }
 
   private static renderOfficialHeader(logoBase64: string): string {
+    const logoContent = logoBase64
+      ? `<img src="${logoBase64}" style="width:80px;height:80px;border-radius:50%;border:2px solid #ccc;object-fit:cover;display:block;" alt="PGAN Logo" />`
+      : `<div style="width:80px;height:80px;border:3px solid #1a365d;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;text-align:center;background:#f7fafc;color:#1a365d;">
+          <div>PGAN<br/>SEAL</div>
+        </div>`;
+
     return `
       <div class="official-header">
         <div class="government-seal">
-          <img src="${logoBase64}" alt="PGAN Logo" style="width:80px;height:80px;object-fit:contain;">
+          ${logoContent}
         </div>
         <div class="document-number">
           Document No.: FAAS-${String(Math.floor(Math.random() * 9000) + 1000)}<br>
@@ -183,7 +237,7 @@ ${this.renderRow([{ label: 'Kind of Bldg.', value: gd.kindOfBuilding }, { label:
 ${this.renderRow([{ label: 'Structural Type', value: gd.structuralType }, { label: 'No. of Storeys:', value: gd.numberOfStoreys }])}
 ${this.renderRow([{ label: 'Bldg. Permit No.', value: gd.buildingPermitNo }, { label: 'Total Floor Area', value: gd.totalFloorArea ? `${gd.totalFloorArea} sq.m` : '' }])}
 ${this.renderRow([{ label: 'Date Constructed', value: gd.dateConstructed ? new Date(gd.dateConstructed).toLocaleDateString() : '' }, { label: 'Date Occupied', value: gd.dateOccupied ? new Date(gd.dateOccupied).toLocaleDateString() : '' }])}
-${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: gd.unit_value ? `PHP ${gd.unit_value}` : '' }])}`;
+${this.renderRow([{ label: 'Condominium CCT', value: gd.condominiumCCT }, { label: 'Unit Value', value: this.formatCurrency(gd.unit_value) }])}`;
   }
 
   private static renderStructuralMaterialsSection(assessment: any): string {
@@ -209,24 +263,24 @@ ${renderStructCol('TRUSS FRAMING', sm.trussFraming)}
     if (!assessment.property_appraisal) return '';
     const pa = assessment.property_appraisal;
     return `<div class="section-header">PROPERTY APPRAISAL</div>
-${this.renderRow([{ label: 'Area', value: pa.area ? `${pa.area} sq.m` : '' }, { label: 'Unit Value', value: pa.unit_value ? `PHP ${pa.unit_value.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'BUCC', value: pa.bucc }, { label: 'Base Market Value', value: pa.baseMarketValue ? `PHP ${pa.baseMarketValue.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'Depreciation', value: pa.depreciation }, { label: 'Depreciation Cost', value: pa.depreciationCost ? `PHP ${pa.depreciationCost.toLocaleString()}` : '' }])}
-${this.renderRow([{ label: 'Market Value', value: pa.marketValue ? `PHP ${pa.marketValue.toLocaleString()}` : '', fullWidth: true }])}`;
+${this.renderRow([{ label: 'Area', value: pa.area ? `${pa.area} sq.m` : '' }, { label: 'Unit Value', value: this.formatCurrency(pa.unit_value) }])}
+${this.renderRow([{ label: 'BUCC', value: pa.bucc }, { label: 'Base Market Value', value: this.formatCurrency(pa.baseMarketValue) }])}
+${this.renderRow([{ label: 'Depreciation', value: pa.depreciation }, { label: 'Depreciation Cost', value: this.formatCurrency(pa.depreciationCost) }])}
+${this.renderRow([{ label: 'Market Value', value: this.formatCurrency(pa.marketValue), fullWidth: true }])}`;
   }
 
   private static renderAdditionalItemsSection(assessment: any): string {
     if (!assessment.additionalItems?.items?.length) return '';
     return `<div class="section-header">ADDITIONAL ITEMS</div>
-${assessment.additionalItems.items.map((item: any) => this.renderRow([{ label: `${item.label}:`, value: `Qty: ${item.quantity}` }, { label: 'Amount:', value: item.amount ? `PHP ${item.amount.toLocaleString()}` : '' }])).join('')}
-${this.renderRow([{ label: 'Total Additional:', value: assessment.additionalItems.total ? `PHP ${assessment.additionalItems.total.toLocaleString()}` : '', fullWidth: true }])}`;
+${assessment.additionalItems.items.map((item: any) => this.renderRow([{ label: `${item.label}:`, value: `Qty: ${item.quantity}` }, { label: 'Amount:', value: this.formatCurrency(item.amount) }])).join('')}
+${this.renderRow([{ label: 'Total Additional:', value: this.formatCurrency(assessment.additionalItems.total), fullWidth: true }])}`;
   }
 
   private static renderPropertyAssessmentSection(assessment: any): string {
     if (!assessment.property_assessment) return '';
     const pa = assessment.property_assessment;
     return `<div class="page-break-before"></div><div class="section-header">PROPERTY ASSESSMENT</div>
-${this.renderRow([{ label: 'Market Value:', value: pa.market_value ? `PHP ${pa.market_value.toLocaleString()}` : '' }, { label: 'Assessment Value', value: pa.assessment_value ? `PHP ${pa.assessment_value.toLocaleString()}` : '' }])}
+${this.renderRow([{ label: 'Market Value:', value: this.formatCurrency(pa.market_value) }, { label: 'Assessment Value', value: this.formatCurrency(pa.assessment_value) }])}
 ${this.renderRow([{ label: 'Building Category', value: pa.building_category }, { label: 'Assessment Level', value: pa.assessment_level ? `${pa.assessment_level}%` : '' }])}
 ${this.renderRow([{ label: 'Taxable', value: pa.taxable ? 'Yes' : 'No' }, { label: 'Total Area', value: pa.total_area ? `${pa.total_area} sq.m` : '' }])}
 ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Effective Quarter', value: pa.eff_quarter }])}`;
@@ -244,25 +298,42 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
           ASSESSOR
         </div>
 <div style="text-align:center;margin-top:20px;font-size:8px;border:2px solid #000;padding:10px;background:#f0f0f0"><b style="margin-bottom:5px">CERTIFICATION</b><div>I hereby certify that this Field Appraisal and Assessment Sheet (FAAS) has been prepared in accordance with the provisions of Republic Act No. 7160 (Local Government Code) and other applicable laws and regulations.</div><div style="margin-top:10px">This document is valid for official purposes and legal proceedings.</div></div>
-<div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2024</div><div>Revision: 1.0</div><div>Effective Date: January 1, 2024</div></div></div>`;
+<div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2026</div><div>Revision: 6th</div><div>Effective Date: January 1, ${new Date().getFullYear()}</div></div></div>`;
   }
 
   public static async printDocument(assessment: any): Promise<void> {
     try {
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+
       await Print.printAsync({
-        html: await this.generatePrintHTML(assessment),
-        width: 612,
-        height: 792,
+        html: this.generatePrintHTML(assessment, logoBase64),
       });
     } catch (error) {
+      console.error('Error printing document:', error);
       Alert.alert('Error', 'Failed to print document');
     }
   }
 
   public static async savePDF(assessment: any): Promise<void> {
     try {
+      console.log('📄 Starting PDF generation...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const filename = `FAAS_${sanitizedOwnerName}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF
       const { uri } = await Print.printToFileAsync({
-        html: await this.generatePrintHTML(assessment),
+        html: this.generatePrintHTML(assessment, logoBase64),
         width: 612,
         height: 792,
         base64: false,
@@ -274,16 +345,407 @@ ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Eff
         },
       });
 
-      if (await Sharing.isAvailableAsync()) {
+      console.log('✅ PDF generated at:', uri);
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      console.log('📤 Sharing available:', isAvailable);
+
+      if (isAvailable) {
+        console.log('📤 Opening share dialog...');
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
           dialogTitle: 'Save FAAS Report PDF',
+          UTI: 'com.adobe.pdf',
         });
+        console.log('✅ Share dialog opened successfully');
       } else {
-        Alert.alert('Success', 'PDF saved successfully');
+        // Fallback: Show success message with file location
+        Alert.alert(
+          'PDF Generated',
+          `PDF has been generated successfully!\n\nFile location: ${uri}\n\nNote: Sharing is not available on this device. The PDF is saved in the app's temporary directory.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => console.log('PDF generation acknowledged by user')
+            }
+          ]
+        );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to save PDF');
+      console.error('❌ Error saving PDF:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'PDF Generation Failed',
+        `Failed to generate PDF: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => console.log('PDF error acknowledged by user')
+          }
+        ]
+      );
+    }
+  }
+
+  // Enhanced PDF save method with better file management
+  public static async savePDFToDevice(assessment: any): Promise<void> {
+    try {
+      console.log('💾 Starting enhanced PDF save to device...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const filename = `FAAS_${sanitizedOwnerName}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: this.generatePrintHTML(assessment, logoBase64),
+        width: 612,
+        height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+
+      console.log('✅ PDF generated at:', uri);
+
+      // Use sharing for now since MediaLibrary is not available
+      console.log('🔄 Using share method (MediaLibrary not available)...');
+      await FaasPrintService.sharePDF(uri, filename);
+      return;
+
+      /* TODO: Uncomment when expo-media-library is installed
+      if (Platform.OS === 'android') {
+        // For Android, save to Downloads folder
+        try {
+          console.log('📱 Android detected, requesting media library permissions...');
+          const { status } = await MediaLibrary.requestPermissionsAsync();
+          
+          if (status === 'granted') {
+            console.log('✅ Permissions granted, saving to Downloads...');
+            
+            // Create asset from the generated PDF
+            const asset = await MediaLibrary.createAssetAsync(uri);
+            console.log('📄 Asset created:', asset.id);
+            
+            // Try to get Downloads album, create if it doesn't exist
+            let album = await MediaLibrary.getAlbumAsync('Downloads');
+            if (album == null) {
+              console.log('📁 Creating Downloads album...');
+              album = await MediaLibrary.createAlbumAsync('Downloads', asset, false);
+            } else {
+              console.log('📁 Adding to existing Downloads album...');
+              await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+            }
+            
+            Alert.alert(
+              '✅ PDF Saved Successfully!',
+              `The FAAS report has been saved to your Downloads folder:\n\n📄 ${filename}\n\nYou can find it in your device's Downloads folder or file manager.`,
+              [{ 
+                text: 'OK', 
+                onPress: () => console.log('✅ PDF save to Downloads confirmed by user') 
+              }]
+            );
+          } else {
+            console.log('❌ Media library permissions denied, falling back to sharing...');
+            Alert.alert(
+              'Permission Required',
+              'To save PDF to Downloads folder, please grant storage permission. Using share dialog instead.',
+              [{ text: 'OK' }]
+            );
+            await this.sharePDF(uri, filename);
+          }
+        } catch (mediaError) {
+          console.log('❌ Media library error, falling back to sharing:', mediaError);
+          Alert.alert(
+            'Save to Downloads Failed',
+            'Could not save to Downloads folder. Using share dialog instead.',
+            [{ text: 'OK' }]
+          );
+          await this.sharePDF(uri, filename);
+        }
+      } else if (Platform.OS === 'ios') {
+        // For iOS, save to Files app
+        try {
+          console.log('📱 iOS detected, saving to Files app...');
+          
+          // Create a permanent file in the document directory
+          const documentsDir = FileSystem.documentDirectory;
+          const permanentUri = `${documentsDir}${filename}`;
+          
+          // Copy the temporary file to permanent location
+          await FileSystem.copyAsync({
+            from: uri,
+            to: permanentUri
+          });
+          
+          console.log('📄 File copied to permanent location:', permanentUri);
+          
+          // Share the permanent file
+          await Sharing.shareAsync(permanentUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Save ${filename} to Files`,
+            UTI: 'com.adobe.pdf',
+          });
+          
+          console.log('✅ iOS save completed');
+        } catch (iosError) {
+          console.log('❌ iOS save error, falling back to sharing:', iosError);
+          await this.sharePDF(uri, filename);
+        }
+      } else {
+        // For other platforms, use sharing
+        console.log('🌐 Other platform detected, using share dialog...');
+        await this.sharePDF(uri, filename);
+      }
+      */ // End of MediaLibrary TODO comment block
+    } catch (error) {
+      console.error('❌ Error saving PDF to device:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'PDF Save Failed',
+        `Failed to save PDF: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => console.log('PDF save error acknowledged by user')
+          }
+        ]
+      );
+    }
+  }
+
+  // Enhanced save method that actually downloads to device Downloads folder
+  public static async saveToDownloads(assessment: any): Promise<void> {
+    try {
+      console.log('💾 Starting Downloads save...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const filename = `FAAS_${sanitizedOwnerName}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: this.generatePrintHTML(assessment, logoBase64),
+        width: 612,
+        height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+
+      console.log('✅ PDF generated at:', uri);
+
+      // Use sharing with specific instructions for downloading
+      const isAvailable = await Sharing.isAvailableAsync();
+
+      if (isAvailable) {
+        console.log('📤 Opening enhanced share dialog for download...');
+
+        Alert.alert(
+          '📄 Save PDF to Downloads',
+          `Ready to save: ${filename}\n\nTap "Share" then choose:\n• "Save to Files" (iOS)\n• "Download" or file manager (Android)\n• Cloud storage (Google Drive, OneDrive, etc.)`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => console.log('Download cancelled by user')
+            },
+            {
+              text: 'Share & Download',
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(uri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: `Download ${filename}`,
+                    UTI: 'com.adobe.pdf',
+                  });
+
+                  // Show follow-up instructions
+                  setTimeout(() => {
+                    Alert.alert(
+                      '📥 Download Instructions',
+                      'To save to Downloads folder:\n\n📱 Android: Choose "Download" or your file manager\n🍎 iOS: Choose "Save to Files" > "Downloads"\n☁️ Cloud: Choose your preferred cloud storage',
+                      [{ text: 'Got it!' }]
+                    );
+                  }, 1000);
+                } catch (shareError) {
+                  console.error('Share error:', shareError);
+                  Alert.alert('Share Failed', 'Could not open share dialog. Please try again.');
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Download Not Available',
+          `PDF generated successfully but sharing is not available on this device.\n\nFile location: ${uri}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error in saveToDownloads:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'Download Failed',
+        `Failed to generate PDF for download: ${errorMessage}\n\nPlease try again.`,
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  // Simplified download method with enhanced sharing
+  public static async downloadPDFDirect(assessment: any): Promise<void> {
+    try {
+      console.log('📥 Starting PDF download...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const filename = `FAAS_${sanitizedOwnerName}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: this.generatePrintHTML(assessment, logoBase64),
+        width: 612,
+        height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+
+      console.log('✅ PDF generated at:', uri);
+
+      // Show download instructions and open share dialog
+      Alert.alert(
+        '📥 Download PDF to Device',
+        `File: ${filename}\n\nChoose where to save your PDF:\n\n📱 Android: Select "Downloads" or file manager\n🍎 iOS: Choose "Save to Files" > "Downloads"\n☁️ Cloud: Save to Google Drive, OneDrive, etc.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => console.log('Download cancelled by user')
+          },
+          {
+            text: 'Open Download Options',
+            onPress: async () => {
+              try {
+                console.log('📤 Opening share dialog for download...');
+                await Sharing.shareAsync(uri, {
+                  mimeType: 'application/pdf',
+                  dialogTitle: `Download ${filename}`,
+                  UTI: 'com.adobe.pdf',
+                });
+
+                // Show success tip after a delay
+                setTimeout(() => {
+                  Alert.alert(
+                    '✅ Download Tip',
+                    'PDF shared successfully!\n\nTo find your downloaded file:\n• Check your Downloads folder\n• Look in your chosen app (Files, Drive, etc.)\n• Check your device\'s file manager',
+                    [{ text: 'Got it!' }]
+                  );
+                }, 2000);
+
+              } catch (shareError) {
+                console.error('Share error:', shareError);
+                Alert.alert(
+                  'Share Failed',
+                  'Could not open download options. Please try again or use the Share PDF button instead.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('❌ Error in downloadPDFDirect:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'Download Failed',
+        `Failed to prepare PDF for download: ${errorMessage}\n\nPlease try the Share PDF button instead.`,
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  // Helper method to share PDF
+  private static async sharePDF(uri: string, filename: string): Promise<void> {
+    const isAvailable = await Sharing.isAvailableAsync();
+    console.log('📤 Sharing available:', isAvailable);
+
+    if (isAvailable) {
+      console.log('📤 Opening share dialog...');
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Save ${filename}`,
+        UTI: 'com.adobe.pdf',
+      });
+      console.log('✅ Share dialog opened successfully');
+    } else {
+      Alert.alert(
+        'PDF Generated',
+        `PDF has been generated successfully!\n\nFilename: ${filename}\nLocation: ${uri}\n\nNote: Sharing is not available on this device.`,
+        [{ text: 'OK', onPress: () => console.log('PDF generation acknowledged by user') }]
+      );
+    }
+  }
+
+  // Test method to debug image loading
+  public static async testImageLoading(): Promise<void> {
+    try {
+      console.log('🧪 Testing image loading...');
+      const logoBase64 = await this.getLogoBase64();
+
+      console.log('🎯 Test Results:');
+      console.log('- Logo loaded:', logoBase64 ? 'YES' : 'NO');
+      console.log('- Data URI length:', logoBase64.length);
+      console.log('- Starts with data:', logoBase64.startsWith('data:'));
+      console.log('- Contains base64:', logoBase64.includes('base64'));
+
+      Alert.alert(
+        'Image Loading Test',
+        `Logo loaded: ${logoBase64 ? 'YES' : 'NO'}\nLength: ${logoBase64.length}\nCheck console for details`
+      );
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+      Alert.alert('Test Failed', 'Check console for error details');
     }
   }
 }

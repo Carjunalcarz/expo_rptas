@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "expo_rptas",
-    "slug": "restate",
+    "slug": "expo-rptass2025",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -37,15 +37,19 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "resizeMode": "cover",
-          "backgroundColor": "#ffffff",
-          "enableFullScreenImage_legacy": true
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
         }
       ],
       [
@@ -61,7 +65,8 @@
           ]
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
@@ -71,8 +76,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "bbad0fb4-65a5-4a05-a392-35bc37803e8f"
+        "projectId": "3771e933-f42d-4f5c-aa98-1854701e8eaf"
       }
-    }
+    },
+    "owner": "alcarz"
   }
 }

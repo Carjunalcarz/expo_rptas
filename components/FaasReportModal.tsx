@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, Alert, Share } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import FaasReport from './FaasReport';
+import FaasReport from './FaasReportSimple';
 
 interface FaasReportModalProps {
   visible: boolean;
@@ -45,10 +46,10 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
         {/* Header */}
         <View style={{
           flexDirection: 'row',
@@ -59,7 +60,6 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
           backgroundColor: 'white',
           borderBottomWidth: 1,
           borderBottomColor: '#e5e7eb',
-          paddingTop: 50, // Account for status bar
         }}>
           <TouchableOpacity
             onPress={onClose}
@@ -88,46 +88,11 @@ const FaasReportModal: React.FC<FaasReportModalProps> = ({ visible, onClose, ass
           }}>
             FAAS Report
           </Text>
-
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              onPress={handleShare}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#3b82f6',
-              }}
-            >
-              <Icon name="share" size={20} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleExportPDF}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#059669',
-              }}
-            >
-              <Icon name="picture-as-pdf" size={20} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handlePrint}
-              style={{
-                padding: 8,
-                borderRadius: 8,
-                backgroundColor: '#6b7280',
-              }}
-            >
-              <Icon name="print" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Report Content */}
         <FaasReport assessment={assessment} />
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

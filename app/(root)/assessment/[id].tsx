@@ -13,7 +13,7 @@ import HeaderHero from './components/HeaderHero';
 import OwnerCard from './components/OwnerCard';
 import Tabs from './components/Tabs';
 import Sections from './components/Sections';
-import FaasReportModal from '@/components/FaasReportModal';
+import { router } from 'expo-router';
 
 // TypeScript interfaces for type safety
 interface AdministratorBeneficiaryData { name: string; address: string; tin: string; telNo: string; }
@@ -43,7 +43,6 @@ const AssessmentDetail: React.FC = () => {
     const [loading, setLoading] = React.useState(true);
     const [notFound, setNotFound] = React.useState(false);
     const [refetching, setRefetching] = React.useState(false);
-    const [showFaasReport, setShowFaasReport] = React.useState(false);
 
     React.useEffect(() => {
         let mounted = true;
@@ -293,12 +292,12 @@ const AssessmentDetail: React.FC = () => {
                                             borderRadius: 12,
                                             shadowColor: '#000',
                                             shadowOffset: { width: 0, height: 2 },
-                                            shadowOpacity: 0.2,
-                                            shadowRadius: 4,
+                                            shadowOpacity: 0.25,
+                                            shadowRadius: 3.84,
                                             flexDirection: 'row',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            minHeight: 56
+                                            elevation: 2,
                                         }}
                                     >
                                         {refetching ? (
@@ -311,55 +310,56 @@ const AssessmentDetail: React.FC = () => {
                                         </Text>
                                     </TouchableOpacity>
                                 )}
-                                <TouchableOpacity
-                                    onPress={() => setShowFaasReport(true)}
-                                    style={{
-                                        backgroundColor: '#059669',
-                                        paddingVertical: 16,
-                                        paddingHorizontal: 24,
-                                        borderRadius: 12,
-                                        shadowColor: '#000',
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: 0.2,
-                                        shadowRadius: 4,
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        minHeight: 56,
-                                        marginBottom: 12
-                                    }}
-                                >
-                                    <Icon name="description" size={22} color="#FFF" style={{ marginRight: 12 }} />
-                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Generate FAAS Report</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={{
-                                    backgroundColor: '#3b82f6',
-                                    paddingVertical: 16,
-                                    paddingHorizontal: 24,
-                                    borderRadius: 12,
-                                    shadowColor: '#000',
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.2,
-                                    shadowRadius: 4,
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minHeight: 56
-                                }}>
-                                    <Icon name="payment" size={22} color="#FFF" style={{ marginRight: 12 }} />
-                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Pay Now</Text>
-                                </TouchableOpacity>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            router.push({
+                                                pathname: '/(root)/faas-report',
+                                                params: { assessment: JSON.stringify(assessment) }
+                                            });
+                                        }}
+                                        style={{
+                                            backgroundColor: '#059669',
+                                            paddingVertical: 16,
+                                            paddingHorizontal: 24,
+                                            borderRadius: 12,
+                                            flex: 1,
+                                            alignItems: 'center',
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.25,
+                                            shadowRadius: 3.84,
+                                        }}
+                                    >
+                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Generate FAAS</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            Alert.alert('Payment', 'Payment functionality coming soon!');
+                                        }}
+                                        style={{
+                                            backgroundColor: '#3b82f6',
+                                            paddingVertical: 16,
+                                            paddingHorizontal: 24,
+                                            borderRadius: 12,
+                                            flex: 1,
+                                            alignItems: 'center',
+                                            elevation: 2,
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.25,
+                                            shadowRadius: 3.84,
+                                        }}
+                                    >
+                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Pay Now</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
                     </View>
                 </ScrollView>
                 
-                {/* FAAS Report Modal */}
-                <FaasReportModal
-                    visible={showFaasReport}
-                    onClose={() => setShowFaasReport(false)}
-                    assessment={assessment}
-                />
             </View>
         </FormProvider>
     );

@@ -96,7 +96,7 @@ const AdditionalItems: React.FC = () => {
 
     const [nextId, setNextId] = useState(() => {
         const existing = tableItems || [];
-        return existing.length > 0 ? Math.max(...existing.map((i) => i.id)) + 1 : 1;
+        return existing.length > 0 ? Math.max(...existing.map((i) => Number(i.id) || 0)) + 1 : 1;
     });
 
     useEffect(() => {
@@ -120,8 +120,15 @@ const AdditionalItems: React.FC = () => {
 
     const addTableItem = () => {
         if (!selectedItem) return;
+        // Ensure unique ID by checking existing IDs
+        const existingIds = new Set(tableItems.map(item => Number(item.id)));
+        let uniqueId = nextId;
+        while (existingIds.has(uniqueId)) {
+            uniqueId++;
+        }
+        
         const newItem = {
-            id: nextId,
+            id: uniqueId,
             label: selectedItem.label,
             value: selectedItem.value,
             quantity: 1,
@@ -131,7 +138,7 @@ const AdditionalItems: React.FC = () => {
         newItem.amount = calculateTotal(newItem);
         const updated = [...tableItems, newItem];
         setValue('additionalItems.items', updated);
-        setNextId(nextId + 1);
+        setNextId(uniqueId + 1);
     };
 
     const removeTableItem = (id: number) => {
@@ -254,7 +261,7 @@ const AdditionalItems: React.FC = () => {
                             </View>
                         ) : (
                             tableItems.map((item: any, idx: number) => (
-                                <View key={`${String(item.id)}-${idx}`} className="flex-row">
+                                <View key={`item-${item.id || idx}-${idx}`} className="flex-row">
                                     <View className="py-2 px-2 min-w-[220px] items-center justify-center" style={{ minWidth: 220 }}>
                                         <Text className="text-gray-800 text-sm">{item.label}</Text>
                                     </View>

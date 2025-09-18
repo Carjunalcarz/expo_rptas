@@ -11,12 +11,14 @@ import { navigateToAddAssessment } from '@/lib/navigation'
 import { useFocusEffect } from '@react-navigation/native'
 import { getCurrentUser, syncPendingToAppwrite, login, ensureSession } from '@/lib/appwrite'
 import { navigateToRemoteAssessments } from '@/lib/navigation'
+import AssessmentSearch from '@/components/AssessmentSearch'
 
 const Assessment = () => {
   const handleAddAssessment = () => navigateToAddAssessment()
   const { watch } = useForm();
 
   const [list, setList] = useState<any[]>([]);
+  const [filteredList, setFilteredList] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -112,8 +114,12 @@ const Assessment = () => {
 
   const allValues = watch();
 
-  const pending = list.filter((it) => !it.synced);
-  const synced = list.filter((it) => !!it.synced);
+  const pending = filteredList.filter((it) => !it.synced);
+  const synced = filteredList.filter((it) => !!it.synced);
+
+  const handleFilteredResults = (filtered: any[]) => {
+    setFilteredList(filtered);
+  };
 
   const renderRow = (item: any) => {
     const src = item.data?.building_location?.buildingImages?.[0] || item.data?.property_appraisal?.gallery?.[0]?.image;
@@ -183,6 +189,16 @@ const Assessment = () => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Search Component */}
+        {list.length > 0 && (
+          <AssessmentSearch
+            assessments={list}
+            onFilteredResults={handleFilteredResults}
+            placeholder="Search by owner, location, or ID..."
+          />
+        )}
+
         {list.length > 0 ? (
           <SectionList
             sections={[
