@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, TouchableOpacity, Alert, View, Modal, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncPending, saveAssessment, updateAssessment, getAssessmentById } from '../../../lib/local-db';
-import { syncPendingToAppwrite, getCurrentUser } from '../../../lib/appwrite';
+import { syncPendingToAppwrite } from '../../../lib/appwrite';
 import { useEffect } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -198,8 +198,8 @@ const AddAssessment: React.FC = () => {
                 text: 'OK',
                 onPress: async () => {
                     try {
-                        const u = await getCurrentUser();
-                        const results = await syncPendingToAppwrite({ userId: u?.$id });
+                        // No need to get current user - anonymous sessions will be used automatically
+                        const results = await syncPendingToAppwrite();
                         const ok = results.filter((r) => r.ok).length;
                         const fail = results.length - ok;
                         Alert.alert('Sync complete', fail > 0 ? `Synced ${ok}, ${fail} failed.` : `Synced ${ok} item(s).`);

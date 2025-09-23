@@ -16,7 +16,7 @@ import * as FileSystem from 'expo-file-system';
 import { getPendingAssessments, markAssessmentSynced } from "./local-db";
 
 export const config = {
-  platform: "com.pgan.expo_rptas",
+  platform: "com.ajncarz.restate",
   endpoint: process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT,
   publicEndpoint: process.env.EXPO_PUBLIC_APPWRITE_PUBLIC_ENDPOINT,
   projectId: process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID,
@@ -78,12 +78,11 @@ export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 
-// OAuth2 login with Google
-
-
-export async function login() {
+// OAuth2 login with Google (DISABLED - using anonymous sessions instead)
+// To re-enable Google Auth, uncomment this function and update ensureSession()
+export async function loginWithGoogle() {
   if (!isConfigured) {
-    console.warn("login() called but Appwrite is not configured");
+    console.warn("loginWithGoogle() called but Appwrite is not configured");
     return false;
   }
   try {
@@ -113,6 +112,77 @@ export async function login() {
     return true;
   } catch (error) {
     console.error(error);
+    return false;
+  }
+}
+
+// Email/Password authentication functions
+export async function createAccount(email: string, password: string, name: string) {
+  if (!isConfigured) {
+    console.warn("createAccount() called but Appwrite is not configured");
+    return { success: false, error: "Appwrite not configured" };
+  }
+  try {
+    const user = await account.create(ID.unique(), email, password, name);
+    console.log('Account created successfully:', user.$id);
+    return { success: true, user };
+  } catch (error: any) {
+    console.error('Failed to create account:', error);
+    return { success: false, error: error?.message || 'Failed to create account' };
+  }
+}
+
+export async function loginWithEmail(email: string, password: string) {
+  if (!isConfigured) {
+    console.warn("loginWithEmail() called but Appwrite is not configured");
+    return { success: false, error: "Appwrite not configured" };
+  }
+  try {
+    const session = await account.createEmailPasswordSession(email, password);
+    console.log('Email login successful:', session.userId);
+    return { success: true, session };
+  } catch (error: any) {
+    console.error('Failed to login with email:', error);
+    return { success: false, error: error?.message || 'Failed to login' };
+  }
+}
+
+// Simple login function for backward compatibility (now uses existing account)
+export async function login() {
+  // Use your existing Appwrite account
+  const defaultEmail = "user@example.com";
+  const defaultPassword = "password";
+  const defaultName = "RPTAS User";
+  
+  if (!isConfigured) {
+    console.warn("login() called but Appwrite is not configured");
+    return false;
+  }
+  
+  try {
+    // First try to login with existing account
+    const loginResult = await loginWithEmail(defaultEmail, defaultPassword);
+    if (loginResult.success) {
+      console.log('Logged in with existing account');
+      return true;
+    }
+    
+    // If login fails, try to create account
+    console.log('Login failed, trying to create account...');
+    const createResult = await createAccount(defaultEmail, defaultPassword, defaultName);
+    if (createResult.success) {
+      // Now login with the newly created account
+      const loginResult2 = await loginWithEmail(defaultEmail, defaultPassword);
+      if (loginResult2.success) {
+        console.log('Account created and logged in successfully');
+        return true;
+      }
+    }
+    
+    console.error('Failed to login or create account');
+    return false;
+  } catch (error) {
+    console.error('Login process failed:', error);
     return false;
   }
 }
@@ -230,23 +300,21 @@ async function uploadFileFromUri(uri: string) {
   // Store the original local URI
   const localUri = uri;
   
-  // Ensure we have a valid session and user context
+  // Ensure we have a valid session (anonymous or authenticated)
   let userId: string;
   try { 
     const session = await ensureSession();
     console.log('Session verified:', Boolean(session));
     
-    // Verify user is authenticated
-    const user = await account.get();
-    console.log('Authenticated as user:', user.$id);
-    
-    if (!user || !user.$id) {
-      throw new Error('No authenticated user found');
+    if (!session || !session.$id) {
+      throw new Error('Failed to create session for upload');
     }
-    userId = user.$id;
+    
+    userId = session.$id;
+    console.log('Upload session ready for user:', userId);
   } catch (e) {
-    console.error('Authentication check failed:', e);
-    throw new Error('Failed to authenticate with Appwrite. Please log in again.');
+    console.error('Session creation failed:', e);
+    throw new Error('Failed to create session for upload. Please check your Appwrite configuration.');
   }
 
   // Verify storage is initialized
@@ -428,23 +496,33 @@ function isHttpUri(u?: string) {
   return lower.startsWith('http://') || lower.startsWith('https://');
 }
 
-// Ensure there is an active session. If none, try to create an anonymous session.
+// Ensure there is an active session. Uses email/password authentication.
 export async function ensureSession() {
   if (!isConfigured) return null;
+  
   try {
+    // Check if we already have an active session
     const me = await account.get();
+    console.log('Existing session found for user:', me.$id);
     return me;
   } catch (_) {
-    // no session
+    // No existing session, try to login with default account
+    console.log('No existing session, trying to login...');
   }
+  
   try {
-    // Try to create anonymous session (works if enabled on the server)
-    // @ts-ignore - method exists in Appwrite SDK
-    await account.createAnonymousSession();
-    const me = await account.get();
-    return me;
+    // Try to login using the default login function
+    const loginSuccess = await login();
+    if (loginSuccess) {
+      const me = await account.get();
+      console.log('Session created successfully for user:', me.$id);
+      return me;
+    } else {
+      console.warn('Failed to create session via login');
+      return null;
+    }
   } catch (e) {
-  console.info('Appwrite: anonymous session not available');
+    console.warn('Failed to create session:', e);
     return null;
   }
 }

@@ -9,7 +9,7 @@ import { getAllAssessments, deleteAssessment } from '@/lib/local-db'
 import { navigateToAssessment } from '@/lib/navigation'
 import { navigateToAddAssessment } from '@/lib/navigation'
 import { useFocusEffect } from '@react-navigation/native'
-import { getCurrentUser, syncPendingToAppwrite, login, ensureSession } from '@/lib/appwrite'
+import { getCurrentUser, syncPendingToAppwrite, ensureSession } from '@/lib/appwrite'
 import { navigateToRemoteAssessments } from '@/lib/navigation'
 import AssessmentSearch from '@/components/AssessmentSearch'
 
@@ -69,20 +69,21 @@ const Assessment = () => {
         onPress: async () => {
           try {
             setSyncing(true);
-            // Ensure there is a session. Prefer logged-in user; else try anonymous; else prompt login.
+            // Ensure there is a session using anonymous authentication
             let userId: string | undefined = undefined;
             const current = await getCurrentUser();
             if (current?.$id) {
               userId = current.$id;
+              console.log('Using existing session for user:', userId);
             } else {
+              // Create anonymous session for sync
+              console.log('Creating anonymous session for sync...');
               const me = await ensureSession();
               userId = (me as any)?.$id;
               if (!userId) {
-                const didLogin = await login();
-                const after = didLogin ? await getCurrentUser() : null;
-                userId = after?.$id;
-                if (!userId) throw new Error('Please sign in to sync');
+                throw new Error('Failed to create anonymous session for sync. Please check your Appwrite configuration.');
               }
+              console.log('Anonymous session created for sync:', userId);
             }
             const results = await syncPendingToAppwrite({ userId });
             const ok = results.filter((r) => r.ok).length;
