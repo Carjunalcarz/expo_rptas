@@ -16,7 +16,7 @@ import * as FileSystem from 'expo-file-system';
 import { getPendingAssessments, markAssessmentSynced } from "./local-db";
 
 export const config = {
-  platform: "com.pgan.expo_rptas",
+  platform: "com.ajncarz.restate",
   endpoint: process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT,
   publicEndpoint: process.env.EXPO_PUBLIC_APPWRITE_PUBLIC_ENDPOINT,
   projectId: process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID,
@@ -78,12 +78,11 @@ export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 
-// OAuth2 login with Google
-
-
-export async function login() {
+// OAuth2 login with Google (DISABLED - using anonymous sessions instead)
+// To re-enable Google Auth, uncomment this function and update ensureSession()
+export async function loginWithGoogle() {
   if (!isConfigured) {
-    console.warn("login() called but Appwrite is not configured");
+    console.warn("loginWithGoogle() called but Appwrite is not configured");
     return false;
   }
   try {
@@ -113,6 +112,77 @@ export async function login() {
     return true;
   } catch (error) {
     console.error(error);
+    return false;
+  }
+}
+
+// Email/Password authentication functions
+export async function createAccount(email: string, password: string, name: string) {
+  if (!isConfigured) {
+    console.warn("createAccount() called but Appwrite is not configured");
+    return { success: false, error: "Appwrite not configured" };
+  }
+  try {
+    const user = await account.create(ID.unique(), email, password, name);
+    console.log('Account created successfully:', user.$id);
+    return { success: true, user };
+  } catch (error: any) {
+    console.error('Failed to create account:', error);
+    return { success: false, error: error?.message || 'Failed to create account' };
+  }
+}
+
+export async function loginWithEmail(email: string, password: string) {
+  if (!isConfigured) {
+    console.warn("loginWithEmail() called but Appwrite is not configured");
+    return { success: false, error: "Appwrite not configured" };
+  }
+  try {
+    const session = await account.createEmailPasswordSession(email, password);
+    console.log('Email login successful:', session.userId);
+    return { success: true, session };
+  } catch (error: any) {
+    console.error('Failed to login with email:', error);
+    return { success: false, error: error?.message || 'Failed to login' };
+  }
+}
+
+// Simple login function for backward compatibility (now uses existing account)
+export async function login() {
+  // Use your existing Appwrite account
+  const defaultEmail = "user@example.com";
+  const defaultPassword = "password";
+  const defaultName = "RPTAS User";
+  
+  if (!isConfigured) {
+    console.warn("login() called but Appwrite is not configured");
+    return false;
+  }
+  
+  try {
+    // First try to login with existing account
+    const loginResult = await loginWithEmail(defaultEmail, defaultPassword);
+    if (loginResult.success) {
+      console.log('Logged in with existing account');
+      return true;
+    }
+    
+    // If login fails, try to create account
+    console.log('Login failed, trying to create account...');
+    const createResult = await createAccount(defaultEmail, defaultPassword, defaultName);
+    if (createResult.success) {
+      // Now login with the newly created account
+      const loginResult2 = await loginWithEmail(defaultEmail, defaultPassword);
+      if (loginResult2.success) {
+        console.log('Account created and logged in successfully');
+        return true;
+      }
+    }
+    
+    console.error('Failed to login or create account');
+    return false;
+  } catch (error) {
+    console.error('Login process failed:', error);
     return false;
   }
 }
@@ -230,23 +300,21 @@ async function uploadFileFromUri(uri: string) {
   // Store the original local URI
   const localUri = uri;
   
-  // Ensure we have a valid session and user context
+  // Ensure we have a valid session (anonymous or authenticated)
   let userId: string;
   try { 
     const session = await ensureSession();
     console.log('Session verified:', Boolean(session));
     
-    // Verify user is authenticated
-    const user = await account.get();
-    console.log('Authenticated as user:', user.$id);
-    
-    if (!user || !user.$id) {
-      throw new Error('No authenticated user found');
+    if (!session || !session.$id) {
+      throw new Error('Failed to create session for upload');
     }
-    userId = user.$id;
+    
+    userId = session.$id;
+    console.log('Upload session ready for user:', userId);
   } catch (e) {
-    console.error('Authentication check failed:', e);
-    throw new Error('Failed to authenticate with Appwrite. Please log in again.');
+    console.error('Session creation failed:', e);
+    throw new Error('Failed to create session for upload. Please check your Appwrite configuration.');
   }
 
   // Verify storage is initialized
@@ -428,23 +496,33 @@ function isHttpUri(u?: string) {
   return lower.startsWith('http://') || lower.startsWith('https://');
 }
 
-// Ensure there is an active session. If none, try to create an anonymous session.
+// Ensure there is an active session. Uses email/password authentication.
 export async function ensureSession() {
   if (!isConfigured) return null;
+  
   try {
+    // Check if we already have an active session
     const me = await account.get();
+    console.log('Existing session found for user:', me.$id);
     return me;
   } catch (_) {
-    // no session
+    // No existing session, try to login with default account
+    console.log('No existing session, trying to login...');
   }
+  
   try {
-    // Try to create anonymous session (works if enabled on the server)
-    // @ts-ignore - method exists in Appwrite SDK
-    await account.createAnonymousSession();
-    const me = await account.get();
-    return me;
+    // Try to login using the default login function
+    const loginSuccess = await login();
+    if (loginSuccess) {
+      const me = await account.get();
+      console.log('Session created successfully for user:', me.$id);
+      return me;
+    } else {
+      console.warn('Failed to create session via login');
+      return null;
+    }
   } catch (e) {
-  console.info('Appwrite: anonymous session not available');
+    console.warn('Failed to create session:', e);
     return null;
   }
 }
@@ -531,6 +609,7 @@ export async function getPropertyById({ id }: { id: string }) {
 }
 
 // Create an assessment document using flattened fields + JSON blobs
+// SIMPLIFIED VERSION: Only uses assessments table - no separate owners/locations tables
 export async function createAssessmentDocument(params: {
   data: any; // AssessmentFormData
   clientLocalId?: number | string;
@@ -696,68 +775,9 @@ export async function createAssessmentDocument(params: {
     if (doc[k] === undefined) delete doc[k];
   });
 
-  // Optionally create/resolve related Owner and Location documents
-  let ownerRefId: string | undefined;
-  let locationRefId: string | undefined;
-  try {
-    if (owner?.owner && config.databaseId) {
-      // Upsert owner by name+TIN (simple heuristic). In production, use a secure index+query.
-      // Query owners
-      const ownersCol = (process.env as any).EXPO_PUBLIC_APPWRITE_OWNERS_COLLECTION_ID;
-      if (ownersCol) {
-        try {
-          const q = await databases.listDocuments(String(config.databaseId), String(ownersCol), []);
-          const found = q.documents.find((d: any) => (d.name === owner.owner && (owner.tin ? d.tin === owner.tin : true)));
-          if (found) {
-            ownerRefId = found.$id;
-          } else {
-            const createdOwner = await databases.createDocument(String(config.databaseId), String(ownersCol), ID.unique(), {
-              name: owner.owner,
-              address: owner.address || '',
-              tin: owner.tin || '',
-              telNo: owner.telNo || '',
-              hasAdministratorBeneficiary: !!owner.hasAdministratorBeneficiary,
-              // Store nested object as string per schema
-              administratorBeneficiary: owner.administratorBeneficiary ? JSON.stringify(owner.administratorBeneficiary) : '',
-            });
-            ownerRefId = createdOwner.$id;
-          }
-        } catch (e) {
-          // ignore owner upsert errors to not block main write
-        }
-      }
-    }
-  } catch (_) {}
-
-  try {
-    if (loc && (loc.municipality || loc.barangay) && config.databaseId) {
-      const locCol = (process.env as any).EXPO_PUBLIC_APPWRITE_LOCATIONS_COLLECTION_ID;
-      if (locCol) {
-        try {
-          const q = await databases.listDocuments(String(config.databaseId), String(locCol), []);
-          const found = q.documents.find((d: any) => (
-            d.municipality === (loc.municipality || '') && d.barangay === (loc.barangay || '') && d.province === (loc.province || '') && d.street === (loc.street || '')
-          ));
-          if (found) {
-            locationRefId = found.$id;
-          } else {
-            const createdLoc = await databases.createDocument(String(config.databaseId), String(locCol), ID.unique(), {
-              street: loc.street || '',
-              barangay: loc.barangay || '',
-              municipality: loc.municipality || '',
-              province: loc.province || '',
-            });
-            locationRefId = createdLoc.$id;
-          }
-        } catch (e) {
-          // ignore location upsert errors
-        }
-      }
-    }
-  } catch (_) {}
-
-  if (ownerRefId) doc.ownerRefId = ownerRefId;
-  if (locationRefId) doc.locationRefId = locationRefId;
+  // SIMPLIFIED: Only use assessments table - no separate owners/locations tables
+  // All owner and location data is stored as JSON in the assessment document itself
+  // This eliminates the need for separate table management and relationships
 
   const result = await databases.createDocument(
     String(config.databaseId),
@@ -768,12 +788,14 @@ export async function createAssessmentDocument(params: {
   return result;
 }
 
-// Sync all pending local assessments to Appwrite using the same data shape
+// Sync all pending local assessments to Appwrite using SIMPLIFIED approach (assessments table only)
 export async function syncPendingToAppwrite(opts?: { userId?: string }) {
   const pending = await getPendingAssessments();
   const results: { local_id: number; remote_id?: string; ok: boolean; error?: any }[] = [];
+  
   for (const row of pending) {
     try {
+      // Use the simplified createAssessmentDocument (no owners/locations tables)
       const created = await createAssessmentDocument({
         data: row.data,
         clientLocalId: row.local_id,
@@ -1333,3 +1355,5 @@ export async function syncAllOfflineData(
   onProgress?.({ stage: 'completed', message: `Sync completed: ${synced}/${total} item(s)` });
   return { success: true, synced, total, results };
 }
+
+

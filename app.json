@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "expo_rptas",
-    "slug": "expo-rptass2025",
+    "name": "adn_rptas",
+    "slug": "adn-rptas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -24,13 +24,15 @@
         "backgroundColor": "#ffffff"
       },
       "usesCleartextTraffic": true,
+      "requestLegacyExternalStorage": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ],
-      "package": "com.ajncarz.restate"
+      "package": "com.ajncarz.restate",
+      "allowBackup": false
     },
     "web": {
       "bundler": "metro",
@@ -65,6 +67,17 @@
           ]
         }
       ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
       "expo-sqlite",
       "expo-asset"
     ],
@@ -76,9 +89,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "3771e933-f42d-4f5c-aa98-1854701e8eaf"
+        "projectId": "8e5c8442-27e5-45ba-8eaf-57c0db953096"
       }
     },
-    "owner": "alcarz"
+    "owner": "ajncarz1994"
   }
 }

@@ -3,7 +3,12 @@
     "preview": {
       "environment": "preview",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_APPWRITE_ENDPOINT": "http://192.168.2.23/v1",
+        "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "68d1e95400343eadc5a2"
       }
     },
     "preview2": {

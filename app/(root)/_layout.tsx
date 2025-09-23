@@ -1,8 +1,9 @@
 import { Redirect, Slot } from "expo-router";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useGlobalContext } from "@/lib/global-provider";
+import DebugFloatingButton from "@/components/DebugFloatingButton";
 
 export default function AppLayout() {
   const { loading, isLogged } = useGlobalContext();
@@ -21,5 +22,10 @@ export default function AppLayout() {
     return <Redirect href="/sign-in" />;
   }
 
-  return <Slot />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Slot />
+      <DebugFloatingButton />
+    </View>
+  );
 }
