@@ -2,6 +2,7 @@ import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, Text, TouchableOpacity, Alert, View, Modal, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDebugContext } from '@/lib/debug-provider';
 import { syncPending, saveAssessment, updateAssessment, getAssessmentById } from '../../../lib/local-db';
 import { syncPendingToAppwrite } from '../../../lib/appwrite';
 import { useEffect } from 'react';
@@ -180,6 +181,7 @@ const dummy_data = (): AssessmentFormData => ({
 
 const AddAssessment: React.FC = () => {
     const params = useLocalSearchParams<{ mode?: string; id?: string }>();
+    const { isDebugVisible } = useDebugContext();
     const isEdit = (params?.mode === 'edit');
     const editId = params?.id ? Number(params.id) : undefined;
     const methods = useForm<AssessmentFormData>({ defaultValues: DEFAULT_VALUES });
@@ -287,22 +289,37 @@ const AddAssessment: React.FC = () => {
                     <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: '700', fontSize: 18 }}>{isEdit ? 'Save Changes' : 'Save Assessment'}</Text>
                 </TouchableOpacity>
             </ScrollView>
-            <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 24 }}>
-                <View style={{ flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => { Alert.alert('Clear Form', 'Reset all fields to default?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => clearForm() }]); }} accessibilityLabel="Clear form" style={{ backgroundColor: '#fff', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4, borderWidth: 1, borderColor: PRIMARY_COLOR, marginBottom: 12 }}>
-                        <MaterialIcons name="clear" size={22} color={PRIMARY_COLOR} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { Alert.alert('Fill Dummy Data', 'Fill form with dummy data?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => fillDummyData() }]); }} accessibilityLabel="Fill dummy data" style={{ backgroundColor: PRIMARY_COLOR, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 4 }}>
-                        <MaterialIcons name="filter-alt" size={22} color="#fff" />
-                    </TouchableOpacity>
+            {/* Debug Floating Action Buttons - Only visible when debug is enabled */}
+            {isDebugVisible && (
+                <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 24 }}>
+                    <View style={{ flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity onPress={() => { Alert.alert('Clear Form', 'Reset all fields to default?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => clearForm() }]); }} accessibilityLabel="Clear form" style={{ backgroundColor: '#fff', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 3, borderWidth: 1, borderColor: PRIMARY_COLOR, marginBottom: 12 }}>
+                            <MaterialIcons name="clear" size={18} color={PRIMARY_COLOR} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { Alert.alert('Fill Dummy Data', 'Fill form with dummy data?', [{ text: 'Cancel', style: 'cancel' }, { text: 'OK', onPress: () => fillDummyData() }]); }} accessibilityLabel="Fill dummy data" style={{ backgroundColor: PRIMARY_COLOR, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 3 }}>
+                            <MaterialIcons name="filter-alt" size={18} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
+            )}
             <Modal visible={previewVisible} animationType="slide" transparent={true} onRequestClose={cancelPreview}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <Text style={styles.modalTitle}>Preview Assessment</Text>
                         <ScrollView style={styles.previewScroll}>
-                            <Text style={styles.previewText}>{previewData ? JSON.stringify(previewData, null, 2) : 'No data'}</Text>
+                            {isDebugVisible ? (
+                                <Text style={styles.previewText}>{previewData ? JSON.stringify(previewData, null, 2) : 'No data'}</Text>
+                            ) : (
+                                <View style={{ padding: 16 }}>
+                                    <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 12, textAlign: 'center' }}>Ready to Save Assessment</Text>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Owner: {previewData?.owner_details?.owner || 'N/A'}</Text>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Location: {previewData?.building_location?.barangay || 'N/A'}</Text>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Total Area: {previewData?.general_description?.totalFloorArea || 'N/A'} sq.m</Text>
+                                        <Text style={{ fontSize: 14, color: '#666' }}>Assessment Value: {previewData?.property_assessment?.assessment_value ? `₱${Number(previewData.property_assessment.assessment_value).toLocaleString()}` : 'N/A'}</Text>
+                                    </View>
+                                </View>
+                            )}
                         </ScrollView>
                         <View style={styles.modalActions}>
                             <Pressable style={[styles.actionButton, { backgroundColor: '#f3f3f3' }]} onPress={cancelPreview}><Text style={{ color: '#333' }}>Cancel</Text></Pressable>

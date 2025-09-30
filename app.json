@@ -40,7 +40,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -49,7 +49,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
@@ -90,7 +90,9 @@
       },
       "eas": {
         "projectId": "8e5c8442-27e5-45ba-8eaf-57c0db953096"
-      }
+      },
+      "EXPO_PUBLIC_APPWRITE_ENDPOINT": "https://your-production-appwrite-url.com/v1",
+      "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "68d1e95400343eadc5a2"
     },
     "owner": "ajncarz1994"
   }

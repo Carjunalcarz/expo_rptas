@@ -259,6 +259,7 @@ export async function getCurrentUser() {
       return {
         ...result,
         avatar: userAvatar.toString(),
+        emailVerification: result.emailVerification || false, // Ensure emailVerification is included
       };
     }
 

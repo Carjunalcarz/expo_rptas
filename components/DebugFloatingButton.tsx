@@ -143,7 +143,7 @@ const DebugFloatingButton = () => {
         onPress={() => setIsVisible(true)}
         activeOpacity={0.8}
       >
-        <MaterialIcons name="bug-report" size={24} color="white" />
+        <MaterialIcons name="bug-report" size={20} color="white" />
       </TouchableOpacity>
 
       {/* Debug Modal */}
@@ -235,18 +235,18 @@ const styles = StyleSheet.create({
   floatingButton: {
     position: 'absolute',
     bottom: 80,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    left: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
     zIndex: 1000,
   },
   modalContainer: {

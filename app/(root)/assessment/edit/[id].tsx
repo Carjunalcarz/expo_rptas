@@ -4,6 +4,7 @@ import { View, ScrollView, Text, TouchableOpacity, Modal, Pressable } from 'reac
 import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useDebugContext } from '@/lib/debug-provider';
 import { FormProvider, useForm } from 'react-hook-form';
 import { saveAssessment, updateAssessment, getAssessmentById, getSyncMetadata, storeSyncMetadata } from '@/lib/local-db';
 import { getAssessmentDocument, updateAssessmentDocument } from '@/lib/appwrite';
@@ -23,6 +24,7 @@ type AssessmentFormData = any;
 
 export default function EditAssessmentScreen() {
     const { id } = useLocalSearchParams<{ id?: string }>();
+    const { isDebugVisible } = useDebugContext();
     const methods = useForm<AssessmentFormData>({ defaultValues: {} as any });
     const { reset, handleSubmit, getValues } = methods;
     const [loading, setLoading] = React.useState(true);
@@ -293,20 +295,35 @@ export default function EditAssessmentScreen() {
                 </TouchableOpacity>
             </ScrollView>
 
-            <TouchableOpacity
-                onPress={() => setRemoteDataVisible(true)}
-                style={{ position: 'absolute', bottom: 24, right: 20, backgroundColor: PRIMARY_COLOR, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, zIndex: 9999, shadowColor: '#000', shadowOpacity: 0.3, shadowOffset: { width: 0, height: 2 }, shadowRadius: 3 }}
-                accessibilityLabel="Show remote JSON data"
-            >
-                <Icon name="visibility" size={26} color="#ffffff" />
-            </TouchableOpacity>
+            {/* Debug Eye Icon - Only visible when debug is enabled */}
+            {isDebugVisible && (
+                <TouchableOpacity
+                    onPress={() => setRemoteDataVisible(true)}
+                    style={{ position: 'absolute', bottom: 24, right: 20, backgroundColor: PRIMARY_COLOR, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', elevation: 6, zIndex: 9999, shadowColor: '#000', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4 }}
+                    accessibilityLabel="Show remote JSON data"
+                >
+                    <Icon name="visibility" size={20} color="#ffffff" />
+                </TouchableOpacity>
+            )}
 
             <Modal visible={previewVisible} animationType="slide" transparent onRequestClose={cancelPreview}>
                 <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
                     <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, width: '90%', maxHeight: '80%', elevation: 8 }}>
                         <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' }}>Preview Changes</Text>
                         <ScrollView style={{ maxHeight: 300, marginBottom: 16 }}>
-                            <Text style={{ fontSize: 14, color: '#333' }}>{previewData ? JSON.stringify(previewData, null, 2) : 'No data'}</Text>
+                            {isDebugVisible ? (
+                                <Text style={{ fontSize: 14, color: '#333' }}>{previewData ? JSON.stringify(previewData, null, 2) : 'No data'}</Text>
+                            ) : (
+                                <View style={{ padding: 16 }}>
+                                    <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 12, textAlign: 'center' }}>Ready to Save Assessment</Text>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Owner: {previewData?.owner_details?.owner || 'N/A'}</Text>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Location: {previewData?.building_location?.barangay || 'N/A'}</Text>
+                                        <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>Total Area: {previewData?.general_description?.totalFloorArea || 'N/A'} sq.m</Text>
+                                        <Text style={{ fontSize: 14, color: '#666' }}>Assessment Value: {previewData?.property_assessment?.assessment_value ? `₱${Number(previewData.property_assessment.assessment_value).toLocaleString()}` : 'N/A'}</Text>
+                                    </View>
+                                </View>
+                            )}
                         </ScrollView>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
                             <Pressable style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 8, backgroundColor: '#f3f3f3' }} onPress={cancelPreview}>

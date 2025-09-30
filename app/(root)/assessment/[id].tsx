@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, ScrollView, Text, TouchableOpacity, Dimensions, Linking, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Text, TouchableOpacity, Dimensions, Linking, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useDebugContext } from '@/lib/debug-provider';
 import images from '@/constants/images';
 import { getAssessmentById, deleteAssessment, getAllAssessments } from '@/lib/local-db';
 import { getAssessmentDocument, deleteAssessmentDocument } from '@/lib/appwrite';
@@ -37,12 +38,14 @@ const windowWidth = Dimensions.get('window').width;
 
 const AssessmentDetail: React.FC = () => {
     const { id } = useLocalSearchParams<{ id?: string }>();
+    const { isDebugVisible } = useDebugContext();
     const [assessment, setAssessment] = React.useState<AssessmentFormData | null>(null);
     const [meta, setMeta] = React.useState<AssessmentMeta | null>(null);
     const [activeTab, setActiveTab] = React.useState('overview');
     const [loading, setLoading] = React.useState(true);
     const [notFound, setNotFound] = React.useState(false);
     const [refetching, setRefetching] = React.useState(false);
+    const [showJsonModal, setShowJsonModal] = React.useState(false);
 
     React.useEffect(() => {
         let mounted = true;
@@ -280,36 +283,54 @@ const AssessmentDetail: React.FC = () => {
                                 </Text>
                             </View>
 
+                            {/* Enhanced Action Buttons - Modern Design */}
                             <View style={{ flexDirection: 'column', gap: 12 }}>
                                 {meta?.remote_id && (
                                     <TouchableOpacity
                                         onPress={refetchRemoteAssessment}
                                         disabled={refetching}
                                         style={{
-                                            backgroundColor: refetching ? '#9ca3af' : '#10b981',
-                                            paddingVertical: 16,
-                                            paddingHorizontal: 24,
+                                            backgroundColor: refetching ? '#10b981' : '#059669',
+                                            paddingVertical: 12,
+                                            paddingHorizontal: 16,
                                             borderRadius: 12,
-                                            shadowColor: '#000',
+                                            minHeight: 44,
+                                            shadowColor: '#059669',
                                             shadowOffset: { width: 0, height: 2 },
-                                            shadowOpacity: 0.25,
-                                            shadowRadius: 3.84,
+                                            shadowOpacity: 0.2,
+                                            shadowRadius: 4,
+                                            elevation: 4,
                                             flexDirection: 'row',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            elevation: 2,
                                         }}
                                     >
                                         {refetching ? (
-                                            <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 12 }} />
+                                            <>
+                                                <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
+                                                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                                                    Refreshing Data...
+                                                </Text>
+                                            </>
                                         ) : (
-                                            <Icon name="refresh" size={22} color="#FFF" style={{ marginRight: 12 }} />
+                                            <>
+                                                <View style={{
+                                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                                    borderRadius: 8,
+                                                    padding: 4,
+                                                    marginRight: 8
+                                                }}>
+                                                    <Icon name="refresh" size={18} color="#FFF" />
+                                                </View>
+                                                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                                                    Refresh from Server
+                                                </Text>
+                                            </>
                                         )}
-                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
-                                            {refetching ? 'Refreshing Data...' : 'Refresh from Server'}
-                                        </Text>
                                     </TouchableOpacity>
                                 )}
+                                
+                                {/* Action Buttons Row */}
                                 <View style={{ flexDirection: 'row', gap: 8 }}>
                                     <TouchableOpacity
                                         onPress={() => {
@@ -319,48 +340,199 @@ const AssessmentDetail: React.FC = () => {
                                             });
                                         }}
                                         style={{
-                                            backgroundColor: '#059669',
-                                            paddingVertical: 16,
-                                            paddingHorizontal: 24,
-                                            borderRadius: 12,
                                             flex: 1,
-                                            alignItems: 'center',
-                                            elevation: 2,
-                                            shadowColor: '#000',
+                                            backgroundColor: '#059669',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 12,
+                                            borderRadius: 10,
+                                            minHeight: 40,
+                                            shadowColor: '#059669',
                                             shadowOffset: { width: 0, height: 2 },
-                                            shadowOpacity: 0.25,
-                                            shadowRadius: 3.84,
+                                            shadowOpacity: 0.15,
+                                            shadowRadius: 3,
+                                            elevation: 3,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                         }}
                                     >
-                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Generate FAAS</Text>
+                                        <View style={{
+                                            backgroundColor: 'rgba(255,255,255,0.15)',
+                                            borderRadius: 6,
+                                            padding: 3,
+                                            marginRight: 6
+                                        }}>
+                                            <Icon name="description" size={16} color="#fff" />
+                                        </View>
+                                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 14 }}>Generate FAAS</Text>
                                     </TouchableOpacity>
+                                    
                                     <TouchableOpacity
                                         onPress={() => {
                                             Alert.alert('Payment', 'Payment functionality coming soon!');
                                         }}
                                         style={{
-                                            backgroundColor: '#3b82f6',
-                                            paddingVertical: 16,
-                                            paddingHorizontal: 24,
-                                            borderRadius: 12,
                                             flex: 1,
-                                            alignItems: 'center',
-                                            elevation: 2,
-                                            shadowColor: '#000',
+                                            backgroundColor: '#3b82f6',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 12,
+                                            borderRadius: 10,
+                                            minHeight: 40,
+                                            shadowColor: '#3b82f6',
                                             shadowOffset: { width: 0, height: 2 },
-                                            shadowOpacity: 0.25,
-                                            shadowRadius: 3.84,
+                                            shadowOpacity: 0.15,
+                                            shadowRadius: 3,
+                                            elevation: 3,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                         }}
                                     >
-                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Pay Now</Text>
+                                        <View style={{
+                                            backgroundColor: 'rgba(255,255,255,0.15)',
+                                            borderRadius: 6,
+                                            padding: 3,
+                                            marginRight: 6
+                                        }}>
+                                            <Icon name="payment" size={16} color="#fff" />
+                                        </View>
+                                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 14 }}>Pay Now</Text>
                                     </TouchableOpacity>
                                 </View>
+
+                                {/* Debug JSON View Button - Only visible when debug is enabled */}
+                                {isDebugVisible && (
+                                    <TouchableOpacity
+                                        onPress={() => setShowJsonModal(true)}
+                                        style={{
+                                            backgroundColor: '#6366f1',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 12,
+                                            borderRadius: 10,
+                                            minHeight: 40,
+                                            shadowColor: '#6366f1',
+                                            shadowOffset: { width: 0, height: 2 },
+                                            shadowOpacity: 0.15,
+                                            shadowRadius: 3,
+                                            elevation: 3,
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <View style={{
+                                            backgroundColor: 'rgba(255,255,255,0.15)',
+                                            borderRadius: 6,
+                                            padding: 3,
+                                            marginRight: 6
+                                        }}>
+                                            <Icon name="code" size={16} color="#fff" />
+                                        </View>
+                                        <Text style={{ color: 'white', fontWeight: '600', fontSize: 14 }}>View JSON Data</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </View>
                     </View>
                 </ScrollView>
                 
             </View>
+
+            {/* JSON View Modal */}
+            <Modal visible={showJsonModal} animationType="slide" presentationStyle="pageSheet">
+                <View style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
+                    {/* Header */}
+                    <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: 16,
+                        backgroundColor: 'white',
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#e5e7eb',
+                        paddingTop: 50
+                    }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>
+                            Assessment JSON Data
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setShowJsonModal(false)}
+                            style={{
+                                backgroundColor: '#f3f4f6',
+                                borderRadius: 20,
+                                padding: 8
+                            }}
+                        >
+                            <Icon name="close" size={24} color="#666" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* JSON Content */}
+                    <ScrollView style={{ flex: 1, padding: 16 }}>
+                        <View style={{
+                            backgroundColor: '#1f2937',
+                            borderRadius: 12,
+                            padding: 16,
+                            marginBottom: 16
+                        }}>
+                            <Text style={{
+                                color: '#10b981',
+                                fontSize: 14,
+                                fontFamily: 'monospace',
+                                lineHeight: 20
+                            }}>
+                                {JSON.stringify({
+                                    assessment_data: assessment,
+                                    metadata: meta,
+                                    local_id: id
+                                }, null, 2)}
+                            </Text>
+                        </View>
+                    </ScrollView>
+
+                    {/* Footer Actions */}
+                    <View style={{
+                        padding: 16,
+                        backgroundColor: 'white',
+                        borderTopWidth: 1,
+                        borderTopColor: '#e5e7eb',
+                        flexDirection: 'row',
+                        gap: 12
+                    }}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                // Copy to clipboard functionality could be added here
+                                Alert.alert('Info', 'JSON data displayed above. Copy functionality can be added if needed.');
+                            }}
+                            style={{
+                                flex: 1,
+                                backgroundColor: '#3b82f6',
+                                paddingVertical: 12,
+                                borderRadius: 8,
+                                alignItems: 'center',
+                                flexDirection: 'row',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <Icon name="content-copy" size={18} color="#fff" style={{ marginRight: 6 }} />
+                            <Text style={{ color: 'white', fontWeight: '600' }}>Copy JSON</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            onPress={() => setShowJsonModal(false)}
+                            style={{
+                                flex: 1,
+                                backgroundColor: '#6b7280',
+                                paddingVertical: 12,
+                                borderRadius: 8,
+                                alignItems: 'center'
+                            }}
+                        >
+                            <Text style={{ color: 'white', fontWeight: '600' }}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </FormProvider>
     );
 };
