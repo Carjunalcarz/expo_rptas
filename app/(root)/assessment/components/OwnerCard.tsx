@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, Modal, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useFormContext } from 'react-hook-form';
 import images from '@/constants/images';
@@ -10,7 +10,6 @@ type Props = { onMessage?: () => void; onCall?: () => void; onEdit?: () => void;
 export default function OwnerCard({ onMessage, onCall, onEdit, onDelete }: Props) {
     const { watch } = useFormContext();
     const assessment = watch();
-    const [showJson, setShowJson] = React.useState(false);
     const { width } = useWindowDimensions();
     const isSmall = width < 360;
     const labelFontSize = isSmall ? 11 : 12;
@@ -104,35 +103,7 @@ export default function OwnerCard({ onMessage, onCall, onEdit, onDelete }: Props
                     </View>
                 </View>
 
-                {/* Floating JSON FAB (top-right of card) */}
-                <TouchableOpacity
-                    onPress={() => setShowJson(true)}
-                    style={{ position: 'absolute', right: 12, top: 12, width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY_COLOR, alignItems: 'center', justifyContent: 'center', zIndex: 20, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
-                    accessibilityRole="button"
-                    accessibilityLabel="View JSON"
-                >
-                    <Icon name="code" size={20} color="#ffffff" />
-                </TouchableOpacity>
             </View>
-
-            {/* JSON Modal */}
-            <Modal visible={showJson} transparent animationType="slide" onRequestClose={() => setShowJson(false)}>
-                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 }}>
-                    <View style={{ backgroundColor: 'white', borderRadius: 16, maxHeight: '85%', padding: 16 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }}>Assessment JSON</Text>
-                            <TouchableOpacity onPress={() => setShowJson(false)} style={{ padding: 8 }}>
-                                <Icon name="close" size={22} color="#111827" />
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView>
-                            <Text style={{ fontSize: 12, color: '#111827' }}>
-                                {JSON.stringify(assessment, null, 2)}
-                            </Text>
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
         </>
     );
 }

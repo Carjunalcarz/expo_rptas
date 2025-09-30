@@ -4,6 +4,7 @@ import {
   ImageSourcePropType,
   SafeAreaView,
   ScrollView,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -12,6 +13,7 @@ import { router } from "expo-router";
 
 import { logout } from "@/lib/auth";
 import { useGlobalContext } from "@/lib/global-provider";
+import { useDebugContext } from "@/lib/debug-provider";
 
 import icons from "@/constants/icons";
 import { settings } from "@/constants/data";
@@ -23,6 +25,14 @@ interface SettingsItemProp {
   onPress?: () => void;
   textStyle?: string;
   showArrow?: boolean;
+}
+
+interface SettingsItemWithSwitchProp {
+  icon: ImageSourcePropType;
+  title: string;
+  value: boolean;
+  onToggle: (value: boolean) => void;
+  textStyle?: string;
 }
 
 const SettingsItem = ({
@@ -47,8 +57,33 @@ const SettingsItem = ({
   </TouchableOpacity>
 );
 
+const SettingsItemWithSwitch = ({
+  icon,
+  title,
+  value,
+  onToggle,
+  textStyle,
+}: SettingsItemWithSwitchProp) => (
+  <View className="flex flex-row items-center justify-between py-3">
+    <View className="flex flex-row items-center gap-3">
+      <Image source={icon} className="size-6" />
+      <Text className={`text-lg font-rubik-medium text-black-300 ${textStyle}`}>
+        {title}
+      </Text>
+    </View>
+
+    <Switch
+      value={value}
+      onValueChange={onToggle}
+      trackColor={{ false: '#e0e0e0', true: '#007AFF' }}
+      thumbColor={value ? '#ffffff' : '#f4f3f4'}
+    />
+  </View>
+);
+
 const Profile = () => {
   const { user, refetch } = useGlobalContext();
+  const { isDebugVisible, toggleDebugVisibility } = useDebugContext();
 
   const handleLogout = async () => {
     const result = await logout();
@@ -107,6 +142,14 @@ const Profile = () => {
               onPress={() => handleSettingsNavigation(item.route, item.title)}
             />
           ))}
+          
+          {/* Debug Toggle */}
+          <SettingsItemWithSwitch
+            icon={icons.info}
+            title="Show Debug Button"
+            value={isDebugVisible}
+            onToggle={toggleDebugVisibility}
+          />
         </View>
 
         <View className="flex flex-col border-t mt-5 pt-5 border-primary-200">

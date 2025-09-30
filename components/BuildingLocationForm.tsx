@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Image, TouchableOpacity, Alert, ScrollView, Platform, Modal, Dimensions, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Image, TouchableOpacity, Alert, ScrollView, Platform, Modal, Dimensions, Linking, ActivityIndicator, Clipboard } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { useFormContext, Controller, useWatch } from 'react-hook-form';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -14,6 +14,7 @@ const BuildingLocationForm: React.FC = () => {
   const [manualModalVisible, setManualModalVisible] = useState(false);
   const [manualLat, setManualLat] = useState('');
   const [manualLon, setManualLon] = useState('');
+  const [coordinateString, setCoordinateString] = useState('');
   const [isGeneratingLocation, setIsGeneratingLocation] = useState(false);
 
   // Helper function to get nested errors
@@ -301,6 +302,113 @@ const BuildingLocationForm: React.FC = () => {
     });
   };
 
+  // Enhanced coordinate parsing functions
+  const parseCoordinateString = (coordStr: string) => {
+    // Remove extra whitespace and normalize
+    const cleaned = coordStr.trim().replace(/\s+/g, ' ');
+    
+    // Try different coordinate formats
+    const patterns = [
+      // Google Maps format: "14.5995, 120.9842"
+      /^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/,
+      // Google Maps format with spaces: "14.5995 120.9842"
+      /^(-?\d+\.?\d*)\s+(-?\d+\.?\d*)$/,
+      // DMS format: "14°35'58.2"N 120°59'03.1"E"
+      /^(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])$/,
+      // Decimal with N/S E/W: "14.5995°N, 120.9842°E"
+      /^(-?\d+\.?\d*)°?([NS])?,?\s*(-?\d+\.?\d*)°?([EW])?$/,
+      // URL format: "@14.5995,120.9842"
+      /^@?(-?\d+\.?\d*),(-?\d+\.?\d*)$/,
+      // Parentheses format: "(14.5995, 120.9842)"
+      /^\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)$/
+    ];
+
+    for (const pattern of patterns) {
+      const match = cleaned.match(pattern);
+      if (match) {
+        if (pattern.source.includes('°')) {
+          // Handle DMS format
+          if (match.length === 9) {
+            const latDeg = parseInt(match[1]);
+            const latMin = parseInt(match[2]);
+            const latSec = parseFloat(match[3]);
+            const latDir = match[4];
+            const lonDeg = parseInt(match[5]);
+            const lonMin = parseInt(match[6]);
+            const lonSec = parseFloat(match[7]);
+            const lonDir = match[8];
+
+            let lat = latDeg + latMin/60 + latSec/3600;
+            let lon = lonDeg + lonMin/60 + lonSec/3600;
+
+            if (latDir === 'S') lat = -lat;
+            if (lonDir === 'W') lon = -lon;
+
+            return { latitude: lat.toFixed(6), longitude: lon.toFixed(6) };
+          } else {
+            // Handle decimal with direction
+            let lat = parseFloat(match[1]);
+            let lon = parseFloat(match[3]);
+            
+            if (match[2] === 'S') lat = -lat;
+            if (match[4] === 'W') lon = -lon;
+            
+            return { latitude: lat.toFixed(6), longitude: lon.toFixed(6) };
+          }
+        } else {
+          // Handle decimal formats
+          const lat = parseFloat(match[1]);
+          const lon = parseFloat(match[2]);
+          
+          if (!isNaN(lat) && !isNaN(lon)) {
+            return { latitude: lat.toFixed(6), longitude: lon.toFixed(6) };
+          }
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  const pasteFromClipboard = async () => {
+    try {
+      const clipboardContent = await Clipboard.getString();
+      if (clipboardContent) {
+        const parsed = parseCoordinateString(clipboardContent);
+        if (parsed) {
+          setManualLat(parsed.latitude);
+          setManualLon(parsed.longitude);
+          setCoordinateString(clipboardContent);
+          Alert.alert('Success', 'Coordinates pasted and parsed successfully!');
+        } else {
+          // If parsing fails, just put the content in the coordinate string field
+          setCoordinateString(clipboardContent);
+          Alert.alert('Pasted', 'Content pasted. Please check the format and parse manually.');
+        }
+      } else {
+        Alert.alert('Empty Clipboard', 'No content found in clipboard.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to access clipboard.');
+    }
+  };
+
+  const parseCoordinateInput = () => {
+    if (!coordinateString.trim()) {
+      Alert.alert('Empty Input', 'Please enter or paste coordinates first.');
+      return;
+    }
+
+    const parsed = parseCoordinateString(coordinateString);
+    if (parsed) {
+      setManualLat(parsed.latitude);
+      setManualLon(parsed.longitude);
+      Alert.alert('Success', 'Coordinates parsed successfully!');
+    } else {
+      Alert.alert('Parse Error', 'Unable to parse coordinates. Please check the format.\n\nSupported formats:\n• 14.5995, 120.9842\n• 14.5995 120.9842\n• @14.5995,120.9842\n• (14.5995, 120.9842)');
+    }
+  };
+
   const saveManualCoords = () => {
     // Validate coordinates
     const lat = parseFloat(manualLat);
@@ -387,46 +495,150 @@ const BuildingLocationForm: React.FC = () => {
         </View>
       </View>
 
-      <View className="flex-row mb-4">
+      {/* Location Action Buttons - Compact Modern Design */}
+      <View className="mb-4">
+        {/* Generate Location Button - Primary Action */}
         <TouchableOpacity
           onPress={generateLocation}
-          className="flex-1 bg-green-600 py-3 rounded-lg mr-2 items-center flex-row justify-center"
           disabled={isGeneratingLocation}
+          style={{
+            backgroundColor: isGeneratingLocation ? '#10b981' : '#059669',
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 12,
+            marginBottom: 12,
+            minHeight: 44,
+            shadowColor: '#059669',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            elevation: 4,
+          }}
+          className="items-center flex-row justify-center"
         >
           {isGeneratingLocation ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <>
+              <ActivityIndicator color="#fff" size="small" style={{ marginRight: 8 }} />
+              <Text className="text-white font-rubik-bold text-base">Getting Location...</Text>
+            </>
           ) : (
             <>
-              <Icon name="my-location" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text className="text-white font-rubik-bold">Generate Location</Text>
+              <View style={{
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                padding: 4,
+                marginRight: 8
+              }}>
+                <Icon name="my-location" size={18} color="#fff" />
+              </View>
+              <Text className="text-white font-rubik-bold text-base">Generate Location</Text>
             </>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={viewOnMap}
-          className="flex-1 bg-blue-600 py-3 rounded-lg ml-2 items-center flex-row justify-center"
-        >
-          <Icon name="map" size={18} color="#fff" style={{ marginRight: 8 }} />
-          <Text className="text-white font-rubik-bold">View on Map</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Secondary Action Buttons */}
+        <View className="flex-row" style={{ gap: 8 }}>
+          <TouchableOpacity
+            onPress={viewOnMap}
+            style={{
+              flex: 1,
+              backgroundColor: '#3b82f6',
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              minHeight: 40,
+              shadowColor: '#3b82f6',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15,
+              shadowRadius: 3,
+              elevation: 3,
+            }}
+            className="items-center flex-row justify-center"
+          >
+            <View style={{
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              borderRadius: 6,
+              padding: 3,
+              marginRight: 6
+            }}>
+              <Icon name="map" size={16} color="#fff" />
+            </View>
+            <Text className="text-white font-rubik-semibold text-sm">View Map</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => setManualModalVisible(true)}
-        className="bg-gray-200 py-3 rounded-lg mb-4 items-center flex-row justify-center"
-      >
-        <Icon name="edit" size={18} color="#333" style={{ marginRight: 8 }} />
-        <Text className="text-gray-800 font-rubik-bold">Enter Coordinates Manually</Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setManualModalVisible(true)}
+            style={{
+              flex: 1,
+              backgroundColor: '#6366f1',
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              minHeight: 40,
+              shadowColor: '#6366f1',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15,
+              shadowRadius: 3,
+              elevation: 3,
+            }}
+            className="items-center flex-row justify-center"
+          >
+            <View style={{
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              borderRadius: 6,
+              padding: 3,
+              marginRight: 6
+            }}>
+              <Icon name="edit" size={16} color="#fff" />
+            </View>
+            <Text className="text-white font-rubik-semibold text-sm">Manual Entry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {renderImageUploader()}
 
       <Modal visible={manualModalVisible} animationType="slide" transparent={true}>
         <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-white rounded-xl p-6 w-5/6">
-            <Text className="text-xl font-rubik-bold text-gray-800 mb-4">Enter Coordinates Manually</Text>
+          <View className="bg-white rounded-xl p-6 w-5/6 max-h-5/6">
+            <Text className="text-xl font-rubik-bold text-gray-800 mb-4">Enter Coordinates</Text>
 
+            {/* Quick Paste Section */}
+            <View className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <Text className="text-base font-rubik-medium text-gray-800 mb-2">📋 Paste from Google Maps</Text>
+              <View className="mb-3">
+                <TextInput
+                  value={coordinateString}
+                  onChangeText={setCoordinateString}
+                  placeholder="Paste coordinates here (e.g., 14.5995, 120.9842)"
+                  multiline
+                  className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white min-h-12"
+                />
+              </View>
+              <View className="flex-row">
+                <TouchableOpacity
+                  onPress={pasteFromClipboard}
+                  className="bg-blue-500 py-2 px-4 rounded-lg mr-2 flex-row items-center"
+                >
+                  <Icon name="content-paste" size={16} color="#fff" style={{ marginRight: 4 }} />
+                  <Text className="text-white font-rubik-medium text-sm">Paste</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={parseCoordinateInput}
+                  className="bg-green-500 py-2 px-4 rounded-lg flex-row items-center"
+                >
+                  <Icon name="transform" size={16} color="#fff" style={{ marginRight: 4 }} />
+                  <Text className="text-white font-rubik-medium text-sm">Parse</Text>
+                </TouchableOpacity>
+              </View>
+              <Text className="text-xs text-gray-600 mt-2">
+                Supports: "14.5995, 120.9842", "@14.5995,120.9842", "(14.5995, 120.9842)"
+              </Text>
+            </View>
+
+            {/* Manual Entry Section */}
+            <Text className="text-base font-rubik-medium text-gray-800 mb-3">✏️ Or Enter Manually</Text>
+            
             <View className="mb-4">
               <Text className="text-base font-rubik-medium text-gray-700 mb-1">Latitude</Text>
               <TextInput
