@@ -72,17 +72,17 @@ const OwnerDetailsForm: React.FC = () => {
     return (
       <View className="mb-4">
         <Text className="text-base font-rubik-medium text-black-300 mb-2">
-          {label} <Text className="text-red-500">*</Text>
+          {label}
         </Text>
         <Controller
           control={control}
           name={name}
           rules={rules || {
-            required: `${label} is required`,
-            minLength: {
-              value: 1,
-              message: `${label} cannot be empty`
-            },
+            // required: `${label} is required`,
+            // minLength: {
+            //   value: 1,
+            //   message: `${label} cannot be empty`
+            // },
             ...(keyboardType === 'numeric' && validationRules.numeric(label)),
             ...(keyboardType === 'phone-pad' && validationRules.phone(label))
           }}

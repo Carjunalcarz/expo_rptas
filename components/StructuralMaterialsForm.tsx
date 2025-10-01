@@ -423,7 +423,7 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
                   <Controller
                     control={control}
                     name={`structural_materials.flooring.${index}.floorName`}
-                    rules={{ required: 'Floor name is required' }}
+                    // rules={{ required: 'Floor name is required' }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
                         value={value}
@@ -448,7 +448,7 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
                   <Controller
                     control={control}
                     name={`structural_materials.flooring.${index}.material`}
-                    rules={{ required: 'Material selection is required' }}
+                    // rules={{ required: 'Material selection is required' }}
                     render={({ field: { onChange, value } }) => (
                       <MaterialDropdown
                         value={value}
@@ -513,7 +513,7 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
                   <Controller
                     control={control}
                     name={`structural_materials.wallsPartitions.${index}.wallName`}
-                    rules={{ required: 'Wall name is required' }}
+                    // rules={{ required: 'Wall name is required' }}
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
                         value={value}
@@ -538,7 +538,7 @@ const StructuralMaterialsFormAdapted: React.FC = () => {
                   <Controller
                     control={control}
                     name={`structural_materials.wallsPartitions.${index}.material`}
-                    rules={{ required: 'Material selection is required' }}
+                    // rules={{ required: 'Material selection is required' }}
                     render={({ field: { onChange, value } }) => (
                       <MaterialDropdown
                         value={value}

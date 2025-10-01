@@ -759,11 +759,18 @@ export async function createAssessmentDocument(params: {
     effQuarter: propertyAssessment?.eff_quarter || 'QTR1',
     totalArea: Number(propertyAssessment?.total_area || gd?.totalFloorArea || 0),
     additionalItem: data?.additionalItem || '',
+    
+    // Store superseded status only - all details are in JSON
+    isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
 
   // JSON blobs are stored as strings per schema
   owner_details: JSON.stringify(safeOwner || {}),
   building_location: JSON.stringify(safeLoc || {}),
-  land_reference: JSON.stringify(data?.land_reference || {}),
+  land_reference: JSON.stringify({
+    ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
+    superseded_assessment: data?.superseded_assessment || {},
+    memoranda: data?.memoranda || {}
+  }),
   general_description: JSON.stringify(safeGD || {}),
   structural_materials: JSON.stringify(data?.structural_materials || {}),
   property_appraisal: JSON.stringify(safePA || {}),
@@ -1017,9 +1024,15 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     effQuarter: pa?.eff_quarter || 'QTR1',
     totalArea: Number(pa?.total_area || gd?.totalFloorArea || 0),
     additionalItem: data?.additionalItem || '',
+    // Store superseded status only - all details are in JSON
+    isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
     owner_details: JSON.stringify(safeOwner || {}),
     building_location: JSON.stringify(safeLoc || {}),
-    land_reference: JSON.stringify(data?.land_reference || {}),
+    land_reference: JSON.stringify({
+      ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
+      superseded_assessment: data?.superseded_assessment || {},
+      memoranda: data?.memoranda || {}
+    }),
     general_description: JSON.stringify(safeGD || {}),
     structural_materials: JSON.stringify(data?.structural_materials || {}),
     property_appraisal: JSON.stringify(safePA || {}),

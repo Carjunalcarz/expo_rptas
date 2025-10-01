@@ -91,7 +91,7 @@ export class FaasPrintService {
     console.log('Generating HTML with logo:', logoBase64 ? 'Logo present' : 'No logo');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Official FAAS Document</title><style>
-@page{size:legal;margin:.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:14px;line-height:1.4;color:#000;background:white}
+@page{size:legal;margin:0.5in}body{font-family:'Times New Roman',serif;margin:0;padding:0;font-size:14px;line-height:1.4;color:#000;background:white}
 .page-container{max-width:100%;margin:0 auto;background:white;position:relative}
 .official-header{text-align:center;margin-bottom:20px;padding:15px 0;border-bottom:1px solid #ccc;position:relative}
 .government-seal{position:absolute;left:20px;top:10px;width:80px;height:80px;display:flex;align-items:center;justify-content:center}
@@ -134,6 +134,8 @@ export class FaasPrintService {
           ${this.renderPropertyAppraisalSection(assessment)}
           ${this.renderAdditionalItemsSection(assessment)}
           ${this.renderPropertyAssessmentSection(assessment)}
+          ${this.renderMemorandaSection(assessment)}
+          ${this.renderSupersededAssessmentSection(assessment)}
           ${this.renderOfficialFooterSection()}
         </div>
         <div class="document-security">
@@ -286,17 +288,94 @@ ${this.renderRow([{ label: 'Taxable', value: pa.taxable ? 'Yes' : 'No' }, { labe
 ${this.renderRow([{ label: 'Effective Year', value: pa.eff_year }, { label: 'Effective Quarter', value: pa.eff_quarter }])}`;
   }
 
+  private static renderMemorandaSection(assessment: any): string {
+    // Get memoranda from multiple sources for backward compatibility
+    const memorandaText = assessment?.memorandaContent || 
+                         assessment?.land_reference?.memoranda?.memoranda || 
+                         assessment?.memoranda?.memoranda;
+    
+    if (!memorandaText) return '';
+    
+    return `<div class="section-header">MEMORANDA</div>
+${this.renderRow([{ label: 'Memoranda:', value: memorandaText, fullWidth: true }])}`;
+  }
+
+  private static renderSupersededAssessmentSection(assessment: any): string {
+    // Get superseded assessment data from multiple sources
+    const supersededData = assessment?.superseded_assessment || 
+                          assessment?.land_reference?.superseded_assessment || 
+                          {};
+    const hasSupersededData = assessment?.isSuperseded || 
+                            assessment?.supersededBy || 
+                            supersededData?.pin ||
+                            Object.keys(supersededData).length > 0;
+    
+    // Hide section completely if no superseded data
+    if (!hasSupersededData) return '';
+    
+    let supersededContent = '';
+    
+    // Collect all available fields
+    const fields = [];
+    
+    if (assessment.supersededDate || supersededData?.dateOfEntry || supersededData?.date) {
+      fields.push({ label: 'Date of Entry:', value: assessment.supersededDate || supersededData?.dateOfEntry || supersededData?.date });
+    }
+    
+    if (assessment.supersededBy || supersededData?.pin) {
+      fields.push({ label: 'Superseded PIN:', value: assessment.supersededBy || supersededData?.pin });
+    }
+    
+    if (supersededData?.previousOwner) {
+      fields.push({ label: 'Previous Owner:', value: supersededData.previousOwner });
+    }
+    
+    if (supersededData?.totalAssessedValue) {
+      fields.push({ label: 'Previous Assessment:', value: this.formatCurrency(supersededData.totalAssessedValue) });
+    }
+    
+    if (assessment.supersededReason || supersededData?.newValue) {
+      fields.push({ label: 'Status:', value: assessment.supersededReason || supersededData?.newValue });
+    }
+    
+    if (supersededData?.recordingPersonnel) {
+      fields.push({ label: 'Recording Personnel:', value: supersededData.recordingPersonnel });
+    }
+    
+    if (supersededData?.tdArpNo) {
+      fields.push({ label: 'TDN-ARP No:', value: supersededData.tdArpNo });
+    }
+    
+    if (supersededData?.effectivityOfAssessment) {
+      fields.push({ label: 'Effectivity:', value: supersededData.effectivityOfAssessment });
+    }
+    
+    // If no fields to display, return empty
+    if (fields.length === 0) return '';
+    
+    // Arrange fields in 2-column layout
+    for (let i = 0; i < fields.length; i += 2) {
+      const leftField = fields[i];
+      const rightField = fields[i + 1];
+      
+      if (rightField) {
+        // Two fields in one row
+        supersededContent += this.renderRow([leftField, rightField]);
+      } else {
+        // Single field takes full width
+        supersededContent += this.renderRow([{ ...leftField, fullWidth: true }]);
+      }
+    }
+    
+    return `<div class="section-header">RECORD OF SUPERSEDED ASSESSMENT</div>
+${supersededContent}`;
+  }
+
   private static renderOfficialFooterSection(): string {
     const renderSigBox = (title: string, role: string, extra = '') => `<div class="signature-box"><b style="margin-bottom:10px">${title}</b><div class="signature-line"></div><div style="font-size:8px;margin-top:5px"><b>Name & Signature</b><div>${role}</div><div>${extra || 'License No.: _____________'}</div></div><div style="margin-top:15px;font-size:8px">Date: _______________</div></div>`;
 
     return `<div class="footer-section"><div class="legal-notice"><b>LEGAL NOTICE:</b> This is an official government document issued by the Office of the City/Municipal Assessor. Any unauthorized reproduction, alteration, or misuse of this document is punishable by law under the Revised Penal Code and other applicable laws of the Philippines. This document contains confidential information and should be handled accordingly.</div>
 <div class="signature-section">${renderSigBox('APPRAISED BY:', 'Real Property Appraiser')}${renderSigBox('REVIEWED BY:', 'Supervising Appraiser')}${renderSigBox('APPROVED BY:', 'City/Municipal Assessor', 'Position: _______________')}</div>
-        <div class="official-seal-area">
-          OFFICIAL SEAL<br>
-          OF THE<br>
-          CITY/MUNICIPAL<br>
-          ASSESSOR
-        </div>
 <div style="text-align:center;margin-top:20px;font-size:8px;border:2px solid #000;padding:10px;background:#f0f0f0"><b style="margin-bottom:5px">CERTIFICATION</b><div>I hereby certify that this Field Appraisal and Assessment Sheet (FAAS) has been prepared in accordance with the provisions of Republic Act No. 7160 (Local Government Code) and other applicable laws and regulations.</div><div style="margin-top:10px">This document is valid for official purposes and legal proceedings.</div></div>
 <div style="display:flex;justify-content:space-between;margin-top:15px;font-size:7px;color:#666"><div>Form No.: FAAS-2026</div><div>Revision: 6th</div><div>Effective Date: January 1, ${new Date().getFullYear()}</div></div></div>`;
   }
