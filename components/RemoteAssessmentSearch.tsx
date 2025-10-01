@@ -28,12 +28,22 @@ const RemoteAssessmentSearch: React.FC<RemoteAssessmentSearchProps> = ({
     location: ''
   });
 
+  const safeJsonParse = (jsonString: string | undefined | null, fallback: any = {}) => {
+    if (!jsonString) return fallback;
+    try {
+      return JSON.parse(jsonString);
+    } catch (e) {
+      console.warn('RemoteAssessmentSearch JSON Parse Error:', e, 'String:', jsonString?.substring(0, 100));
+      return fallback;
+    }
+  };
+
   const filterAssessments = (assessmentList: any[], currentFilters: RemoteSearchFilters) => {
     return assessmentList.filter(assessment => {
-      // Parse JSON data for remote assessments
-      const ownerDetails = JSON.parse(assessment.owner_details || '{}');
-      const location = JSON.parse(assessment.building_location || '{}');
-      const assessmentDetails = JSON.parse(assessment.property_assessment || '{}');
+      // Parse JSON data for remote assessments with safe parsing
+      const ownerDetails = safeJsonParse(assessment.owner_details);
+      const location = safeJsonParse(assessment.building_location);
+      const assessmentDetails = safeJsonParse(assessment.property_assessment);
 
       // Text search - search in owner name, transaction code, TD/ARP, PIN, and address
       if (currentFilters.searchText) {

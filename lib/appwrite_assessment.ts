@@ -59,17 +59,24 @@ export interface Assessment {
   owner_details?: any;             // Property owner information (name, contact, etc.)
   property_details?: any;          // Basic property information (address, type, etc.)
   building_details?: any;          // Building specifications (area, materials, etc.)
+  building_location?: any;         // GPS coordinates {latitude, longitude}
   land_details?: any;              // Land information (area, classification, etc.)
+  land_reference?: any;            // Land reference information
+  general_description?: any;       // General property description
+  structural_materials?: any;      // Building structural materials
+  property_appraisal?: any;        // Property appraisal details
   property_assessment?: any;       // Assessment calculations and values
+  superseded_assessment?: any;     // Superseded assessment information
+  memoranda?: any;                 // Additional notes and remarks
+  additionalItems?: any;           // Additional items and costs
+  additionalItem?: string;         // Single additional item
   market_value?: any;              // Current market value of the property
   assessment_level?: any;          // Assessment level classification
   assessed_value?: any;            // Final assessed value for taxation
   taxability?: any;                // Tax status and exemptions
   effectivity?: any;               // Assessment effectivity dates
   appraisal_details?: any;         // Detailed appraisal information
-  memoranda?: any;                 // Additional notes and remarks
   attachments?: any;               // File attachments (photos, documents)
-  building_location?: any;         // GPS coordinates {latitude, longitude}
   created_at?: string;             // ISO timestamp when record was created
   updated_at?: string;             // ISO timestamp when record was last updated
   synced?: boolean;                // Flag indicating if record is synced with server
@@ -124,20 +131,55 @@ export class AppwriteAssessmentService {
     // Ensure user session is valid before proceeding
     await ensureSession();
     
-    // Prepare assessment data with metadata
-    const assessmentData = {
-      ...assessment,                           // Spread all assessment fields
-      created_at: new Date().toISOString(),   // Add creation timestamp
-      updated_at: new Date().toISOString(),   // Add update timestamp
-      synced: true                            // Mark as synced since it's being saved to remote
+    // Transform local assessment data to match Appwrite collection attributes structure
+    const transformedData = {
+      // System fields
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      userId: '', // Will be set by Appwrite based on session
+      synced: true,
+      
+      // Indexed fields for searching (extracted from nested objects)
+      ownerName: assessment.owner_details?.owner || '',
+      transactionCode: assessment.owner_details?.transactionCode || '',
+      tdArp: assessment.owner_details?.tdArp || '',
+      pin: assessment.owner_details?.pin || '',
+      barangay: assessment.building_location?.barangay || '',
+      municipality: assessment.building_location?.municipality || '',
+      province: assessment.building_location?.province || '',
+      marketValueTotal: assessment.property_assessment?.market_value || 0,
+      taxable: assessment.property_assessment?.taxable || 1,
+      effYear: assessment.property_assessment?.eff_year || new Date().getFullYear().toString(),
+      effQuarter: assessment.property_assessment?.eff_quarter || 'QTR1',
+      totalArea: assessment.property_assessment?.total_area || '0',
+      additionalItem: assessment.additionalItem || '',
+      
+      // Required field that was missing
+      supersededBy: assessment.superseded_assessment?.pin || '', // Use superseded PIN or empty string
+      
+      // JSON blob fields (store complete nested objects)
+      owner_details: assessment.owner_details || {},
+      building_location: assessment.building_location || {},
+      land_reference: assessment.land_reference || {},
+      general_description: assessment.general_description || {},
+      structural_materials: assessment.structural_materials || {},
+      property_appraisal: assessment.property_appraisal || {},
+      property_assessment: assessment.property_assessment || {},
+      superseded_assessment: assessment.superseded_assessment || {},
+      memoranda: assessment.memoranda || {},
+      additionalItems: assessment.additionalItems || {},
+      
+      // Legacy fields for backward compatibility
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    // Create document in Appwrite database (ASSESSMENTS TABLE ONLY)
+    // Create document in Appwrite database
     const response = await databases.createDocument(
       this.DATABASE_ID,     // Target database
-      this.COLLECTION_ID,   // Target collection (assessments only)
+      this.COLLECTION_ID,   // Target collection
       ID.unique(),          // Generate unique document ID
-      assessmentData        // Document data (all data in single record)
+      transformedData       // Transformed document data
     );
 
     return response as Assessment;

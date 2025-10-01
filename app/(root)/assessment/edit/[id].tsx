@@ -19,6 +19,8 @@ import StructuralMaterialsForm from '../../../../components/StructuralMaterialsF
 import PropertyAppraisalForm from '../../../../components/PropertyAppraisalForm';
 import AdditionalItems from '../../../../components/AdditionalItems';
 import PropertyAssessment from '../../../../components/PropertyAssessment';
+import SupersededAssessmentForm from '../../../../components/SupersededAssessmentForm';
+import MemorandaForm from '../../../../components/MemorandaForm';
 
 type AssessmentFormData = any;
 
@@ -277,6 +279,8 @@ export default function EditAssessmentScreen() {
                     <PropertyAppraisalForm />
                     <AdditionalItems />
                     <PropertyAssessment />
+                    <SupersededAssessmentForm />
+                    <MemorandaForm />
                 </FormProvider>
                 <TouchableOpacity 
                     onPress={showPreview} 

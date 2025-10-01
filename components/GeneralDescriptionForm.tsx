@@ -304,11 +304,11 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           control={control}
           name={name}
           rules={rules || {
-            required: `${label} is required`,
-            minLength: {
-              value: 1,
-              message: `${label} cannot be empty`
-            }
+            // required: `${label} is required`,
+            // minLength: {
+            //   value: 1,
+            //   message: `${label} cannot be empty`
+            // },
           }}
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
@@ -477,7 +477,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
   const handleSaveDrawing = (drawingData: string, imageBase64?: string) => {
     console.log('Saving drawing data:', drawingData);
     const currentDrawings = [...floorPlanDrawings];
-    
+
     if (editingDrawingIndex !== null) {
       // Update existing drawing
       currentDrawings[editingDrawingIndex] = drawingData;
@@ -488,10 +488,10 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
       currentDrawings.push(drawingData);
       console.log('Added new drawing, total drawings:', currentDrawings.length);
     }
-    
+
     setFloorPlanDrawings(currentDrawings);
     setValue('general_description.floorPlanDrawings', currentDrawings);
-    
+
     // Add the converted image to floor plan images if provided
     if (imageBase64) {
       const currentImages = watch('general_description.floorPlanImages') || [];
@@ -499,7 +499,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
       setValue('general_description.floorPlanImages', newImages);
       console.log('Added drawing as image to floor plan images, total images:', newImages.length);
     }
-    
+
     console.log('Floor plan drawings state updated:', currentDrawings.length);
   };
 
@@ -587,18 +587,18 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
               animationType="fade"
               onRequestClose={() => setIsOpen(false)}
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
                 activeOpacity={1}
                 onPress={() => setIsOpen(false)}
               >
-                <View style={{ 
-                  flex: 1, 
-                  justifyContent: 'center', 
+                <View style={{
+                  flex: 1,
+                  justifyContent: 'center',
                   alignItems: 'center',
                   paddingHorizontal: 20
                 }}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     activeOpacity={1}
                     style={{
                       backgroundColor: 'white',
@@ -613,14 +613,14 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
                       elevation: 10,
                     }}
                   >
-                    <View style={{ 
-                      paddingVertical: 16, 
+                    <View style={{
+                      paddingVertical: 16,
                       paddingHorizontal: 20,
                       borderBottomWidth: 1,
                       borderBottomColor: '#e5e7eb'
                     }}>
-                      <Text style={{ 
-                        fontSize: 18, 
+                      <Text style={{
+                        fontSize: 18,
                         fontWeight: '600',
                         color: '#374151',
                         textAlign: 'center'
@@ -628,8 +628,8 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
                         {placeholder}
                       </Text>
                     </View>
-                    
-                    <ScrollView 
+
+                    <ScrollView
                       style={{ maxHeight: screenHeight * 0.4 }}
                       showsVerticalScrollIndicator={true}
                       keyboardShouldPersistTaps="handled"
@@ -650,8 +650,8 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
                           }}
                           activeOpacity={0.7}
                         >
-                          <Text style={{ 
-                            fontSize: 16, 
+                          <Text style={{
+                            fontSize: 16,
                             color: value === option ? '#0369a1' : '#374151',
                             fontWeight: value === option ? '600' : '400'
                           }}>
@@ -696,7 +696,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           name={'general_description.structuralType'}
           options={Object.keys(constructionCosts)}
           placeholder="Select structural type"
-          rules={{ required: 'Structural Type is required' }}
+        // rules={{ required: 'Structural Type is required' }}
         />
         {getError('general_description.structuralType') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
@@ -714,7 +714,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
           name={'general_description.kindOfBuilding'}
           options={availableBuildingTypes}
           placeholder={structuralType ? 'Select kind of building' : 'Select structural type first'}
-          rules={{ required: 'Kind of Building is required' }}
+        // rules={{ required: 'Kind of Building is required' }}
         />
         {getError('general_description.kindOfBuilding') && (
           <Text className="text-red-500 text-sm font-rubik mt-1">
@@ -760,7 +760,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
               <Controller
                 control={control}
                 name={`general_description.floorAreas.${index}.floorNumber`}
-                rules={{ required: 'Floor name is required' }}
+                // rules={{ required: 'Floor name is required' }}
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
                     value={value}
@@ -775,7 +775,7 @@ const GeneralDescriptionFormAdapted: React.FC = () => {
                 control={control}
                 name={`general_description.floorAreas.${index}.area`}
                 rules={{
-                  required: 'Area is required',
+                  // required: 'Area is required',
                   pattern: {
                     value: /^[0-9.]+$/,
                     message: 'Area must be a valid number'

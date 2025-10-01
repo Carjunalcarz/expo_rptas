@@ -32,8 +32,8 @@ function renderAppraisalTable(assessment: any) {
         <View style={{ marginTop: 12 }}>
             <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
                 <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>
-                    {buildingInfo.kindOfBuilding || buildingInfo.structuralType ? 
-                        `${buildingInfo.structuralType || ''} ${buildingInfo.kindOfBuilding || ''}`.trim() : 
+                    {buildingInfo.kindOfBuilding || buildingInfo.structuralType ?
+                        `${buildingInfo.structuralType || ''} ${buildingInfo.kindOfBuilding || ''}`.trim() :
                         'Property Appraisal'}
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
@@ -299,6 +299,7 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                             <Image source={images.map} style={{ height: 160, width: '100%', marginTop: 12, borderRadius: 12 }} resizeMode="cover" />
                         </TouchableOpacity>
 
+
                     </View>
                 </View>
             )}
@@ -412,6 +413,86 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                             {renderAssessmentTable(assessment)}
                         </View>
                     </View>
+
+                    {/* Memoranda Section */}
+                    <View style={{ marginTop: 28 }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Memoranda</Text>
+                        <View style={{ backgroundColor: '#fefce8', borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: '#eab308', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
+                            <Text style={{ fontSize: 14, color: '#713f12', lineHeight: 20 }}>
+                                {assessment?.memorandaContent || assessment?.land_reference?.memoranda?.memoranda || assessment?.memoranda?.memoranda || 'No memoranda provided'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Superseded Assessment Section */}
+                    {(() => {
+                        // Get superseded assessment data from multiple possible sources
+                        const supersededData = assessment?.superseded_assessment || 
+                                             assessment?.land_reference?.superseded_assessment || 
+                                             {};
+                        const hasSupersededData = assessment?.isSuperseded || 
+                                                assessment?.supersededBy || 
+                                                supersededData?.pin ||
+                                                Object.keys(supersededData).length > 0;
+                        
+                        if (!hasSupersededData) return null;
+                        
+                        return (
+                            <View style={{ marginTop: 28 }}>
+                                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Record of Superseded Assessment</Text>
+                                <View style={{ backgroundColor: '#eff6ff', borderRadius: 12, padding: 16, borderLeftWidth: 4, borderLeftColor: '#3b82f6', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
+                                    {(assessment.supersededDate || supersededData?.dateOfEntry || supersededData?.date) && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Date of Entry:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{assessment.supersededDate || supersededData?.dateOfEntry || supersededData?.date}</Text>
+                                        </View>
+                                    )}
+                                    {(assessment.supersededBy || supersededData?.pin) && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Superseded PIN:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{assessment.supersededBy || supersededData?.pin}</Text>
+                                        </View>
+                                    )}
+                                    {supersededData?.previousOwner && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Previous Owner:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{supersededData.previousOwner}</Text>
+                                        </View>
+                                    )}
+                                    {supersededData?.totalAssessedValue && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Previous Assessment:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>₱{Number(supersededData.totalAssessedValue).toLocaleString()}</Text>
+                                        </View>
+                                    )}
+                                    {(assessment.supersededReason || supersededData?.newValue) && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Status:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{assessment.supersededReason || supersededData?.newValue}</Text>
+                                        </View>
+                                    )}
+                                    {supersededData?.recordingPersonnel && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Recording Personnel:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{supersededData.recordingPersonnel}</Text>
+                                        </View>
+                                    )}
+                                    {supersededData?.tdArpNo && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>TDN-ARP No:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{supersededData.tdArpNo}</Text>
+                                        </View>
+                                    )}
+                                    {supersededData?.effectivityOfAssessment && (
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+                                            <Text style={{ fontSize: 14, color: '#1e40af' }}>Effectivity:</Text>
+                                            <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e3a8a' }}>{supersededData.effectivityOfAssessment}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                        );
+                    })()}
                 </View>
             )}
         </View>
