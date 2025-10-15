@@ -48,6 +48,8 @@ import { databases, storage } from './appwrite_config';
 import { Query, ID } from 'react-native-appwrite';
 // Import session management to ensure user is authenticated before operations
 import { ensureSession } from './appwrite';
+// Import FaasPrintService for auto PDF generation during sync
+import { FaasPrintService } from '../components/FaasPrintService';
 
 /**
  * Assessment interface defining the structure of assessment data
@@ -80,6 +82,7 @@ export interface Assessment {
   created_at?: string;             // ISO timestamp when record was created
   updated_at?: string;             // ISO timestamp when record was last updated
   synced?: boolean;                // Flag indicating if record is synced with server
+  faas?: string;                   // URL of the auto-generated FAAS PDF in Appwrite Storage
 }
 
 /**
@@ -131,6 +134,46 @@ export class AppwriteAssessmentService {
     // Ensure user session is valid before proceeding
     await ensureSession();
     
+    // Auto-generate PDF and upload to Appwrite Storage
+    let faasPdfUrl = '';
+    try {
+      console.log('🔄 Auto-generating FAAS PDF during assessment creation...');
+      
+      // Create assessment object in the format expected by FaasPrintService
+      const assessmentForPdf = {
+        ownerName: assessment.owner_details?.owner || '',
+        owner_details: assessment.owner_details || {},
+        building_location: assessment.building_location || {},
+        land_reference: assessment.land_reference || {},
+        general_description: assessment.general_description || {},
+        structural_materials: assessment.structural_materials || {},
+        property_appraisal: assessment.property_appraisal || {},
+        property_assessment: assessment.property_assessment || {},
+        additionalItems: assessment.additionalItems || { items: [], subTotal: 0, total: 0 },
+        superseded_assessment: assessment.superseded_assessment || {},
+        memoranda: assessment.memoranda || {},
+        pin: assessment.owner_details?.pin || '',
+        tdArp: assessment.owner_details?.tdArp || '',
+        transactionCode: assessment.owner_details?.transactionCode || '',
+        barangay: assessment.building_location?.barangay || '',
+        municipality: assessment.building_location?.municipality || '',
+        province: assessment.building_location?.province || ''
+      };
+      
+      // Generate and upload PDF to Appwrite Storage (silent mode for sync)
+      const pdfResult = await FaasPrintService.generatePDFForSync(assessmentForPdf);
+      
+      if (pdfResult.success && pdfResult.url) {
+        faasPdfUrl = pdfResult.url;
+        console.log('✅ FAAS PDF auto-generated and saved:', faasPdfUrl);
+      } else {
+        console.warn('⚠️ PDF generation failed during assessment creation:', pdfResult.error);
+      }
+    } catch (pdfError) {
+      console.warn('⚠️ Failed to auto-generate PDF during assessment creation:', pdfError);
+      // Continue with assessment creation even if PDF generation fails
+    }
+
     // Transform local assessment data to match Appwrite collection attributes structure
     const transformedData = {
       // System fields
@@ -156,6 +199,9 @@ export class AppwriteAssessmentService {
       
       // Required field that was missing
       supersededBy: assessment.superseded_assessment?.pin || '', // Use superseded PIN or empty string
+      
+      // Store the auto-generated FAAS PDF URL
+      faas: faasPdfUrl,
       
       // JSON blob fields (store complete nested objects)
       owner_details: assessment.owner_details || {},
