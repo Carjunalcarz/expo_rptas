@@ -9,6 +9,7 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { saveAssessment, updateAssessment, getAssessmentById, getSyncMetadata, storeSyncMetadata } from '@/lib/local-db';
 import { getAssessmentDocument, updateAssessmentDocument } from '@/lib/appwrite';
 import { parseAssessmentData } from '@/lib/parser';
+import { FaasPrintService } from '../../../../components/FaasPrintService';
 import { PRIMARY_COLOR } from '@/constants/colors';
 import { Alert } from 'react-native';
 import OwnerDetailsForm from '../../../../components/OwnerDetailsForm';
@@ -148,6 +149,51 @@ export default function EditAssessmentScreen() {
         }
     }, [assessmentData, reset]);
 
+    // Helper function to regenerate PDF for local assessments only
+    // (Remote assessments now handle PDF regeneration automatically in updateAssessmentDocument)
+    const regeneratePDFForLocal = async (assessmentData: AssessmentFormData, localId?: string): Promise<string> => {
+        try {
+            console.log('🔄 Regenerating PDF for local assessment...', localId ? `Local ID: ${localId}` : '');
+            
+            // Create assessment object in the format expected by FaasPrintService
+            const assessmentForPdf = {
+                ownerName: assessmentData.owner_details?.owner || '',
+                owner_details: assessmentData.owner_details || {},
+                building_location: assessmentData.building_location || {},
+                land_reference: assessmentData.land_reference || {},
+                general_description: assessmentData.general_description || {},
+                structural_materials: assessmentData.structural_materials || {},
+                property_appraisal: assessmentData.property_appraisal || {},
+                property_assessment: assessmentData.property_assessment || {},
+                additionalItems: assessmentData.additionalItems || { items: [], subTotal: 0, total: 0 },
+                superseded_assessment: assessmentData.superseded_assessment || {},
+                memoranda: assessmentData.memoranda || {},
+                pin: assessmentData.owner_details?.pin || '',
+                tdArp: assessmentData.owner_details?.tdArp || '',
+                transactionCode: assessmentData.owner_details?.transactionCode || '',
+                barangay: assessmentData.building_location?.barangay || '',
+                municipality: assessmentData.building_location?.municipality || '',
+                province: assessmentData.building_location?.province || '',
+                // Include existing PDF URL if available for overwrite
+                faas: assessmentData.faas || ''
+            };
+            
+            // Use the new overwrite-capable method for local assessments too
+            const pdfResult = await FaasPrintService.generatePDFForUpdate(assessmentForPdf, localId);
+            
+            if (pdfResult.success && pdfResult.url) {
+                console.log('✅ PDF regenerated successfully for local assessment:', pdfResult.url);
+                return pdfResult.url;
+            } else {
+                console.warn('⚠️ PDF regeneration failed for local assessment:', pdfResult.error);
+                return '';
+            }
+        } catch (error) {
+            console.error('❌ Error regenerating PDF for local assessment:', error);
+            return '';
+        }
+    };
+
     const onSubmit = async (data: AssessmentFormData) => {
         if (saving) return; // Prevent double submission
         
@@ -157,9 +203,11 @@ export default function EditAssessmentScreen() {
             
             if (isRemote && id) {
                 // Editing a remote record - update it directly on Appwrite
+                // PDF regeneration is now handled automatically in updateAssessmentDocument
                 try {
                     await updateAssessmentDocument(id, { data });
-                    Alert.alert('Success', 'Remote assessment updated successfully!', [
+                    
+                    Alert.alert('Success', 'Assessment and PDF updated successfully!', [
                         { text: 'OK', onPress: () => {
                             const r = require('expo-router');
                             r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id } });
@@ -190,9 +238,11 @@ export default function EditAssessmentScreen() {
                 
                 if (syncMeta?.remoteId) {
                     // This local assessment was synced and deleted, edit the remote version instead
+                    // PDF regeneration is now handled automatically in updateAssessmentDocument
                     try {
                         await updateAssessmentDocument(syncMeta.remoteId, { data });
-                        Alert.alert('Success', 'Remote assessment updated successfully!', [
+                        
+                        Alert.alert('Success', 'Assessment and PDF updated successfully!', [
                             { text: 'OK', onPress: () => {
                                 const r = require('expo-router');
                                 r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: syncMeta.remoteId } });
@@ -216,13 +266,27 @@ export default function EditAssessmentScreen() {
                     }
                 } else {
                     // Regular local record - update it locally
-                    await updateAssessment(localIdNumber, data);
+                    // Try to regenerate PDF for local assessment too
+                    const newPdfUrl = await regeneratePDFForLocal(data, String(localIdNumber));
+                    
+                    // Update local data with PDF URL if generated
+                    const updatedData = { ...data };
+                    if (newPdfUrl) {
+                        updatedData.faas = newPdfUrl;
+                    }
+                    
+                    await updateAssessment(localIdNumber, updatedData);
                     await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
                         local_id: localIdNumber, 
                         createdAt: new Date().toISOString(), 
-                        data 
+                        data: updatedData 
                     }));
-                    Alert.alert('Success', 'Assessment updated successfully!', [
+                    
+                    const successMessage = newPdfUrl 
+                        ? 'Assessment and PDF updated successfully!' 
+                        : 'Assessment updated successfully! (PDF regeneration failed)';
+                    
+                    Alert.alert('Success', successMessage, [
                         { text: 'OK', onPress: () => {
                             const r = require('expo-router');
                             r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(localIdNumber) } });
@@ -231,13 +295,27 @@ export default function EditAssessmentScreen() {
                 }
             } else {
                 // Creating a new record
-                const newLocalId = await saveAssessment({ createdAt: new Date().toISOString(), data });
+                // Generate PDF for new assessment (no ID yet, will use PIN-based naming)
+                const newPdfUrl = await regeneratePDFForLocal(data);
+                
+                // Include PDF URL in new assessment data
+                const newAssessmentData = { ...data };
+                if (newPdfUrl) {
+                    newAssessmentData.faas = newPdfUrl;
+                }
+                
+                const newLocalId = await saveAssessment({ createdAt: new Date().toISOString(), data: newAssessmentData });
                 await AsyncStorage.setItem('last_assessment', JSON.stringify({ 
                     local_id: newLocalId, 
                     createdAt: new Date().toISOString(), 
-                    data 
+                    data: newAssessmentData 
                 }));
-                Alert.alert('Success', 'Assessment saved successfully!', [
+                
+                const successMessage = newPdfUrl 
+                    ? 'Assessment and PDF saved successfully!' 
+                    : 'Assessment saved successfully! (PDF generation failed)';
+                
+                Alert.alert('Success', successMessage, [
                     { text: 'OK', onPress: () => {
                         const r = require('expo-router');
                         r?.router?.replace?.({ pathname: '/(root)/assessment/[id]', params: { id: String(newLocalId) } });

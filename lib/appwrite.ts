@@ -480,7 +480,25 @@ export function normalizeAppwriteFileUrl(urlStr: string): string {
   const ids = extractAppwriteFileIds(urlStr);
   if (!ids) return urlStr;
   try {
-  return buildViewUrl(ids.bucketId, ids.fileId);
+    // Extract cache-busting parameters if they exist
+    const url = new URL(urlStr);
+    const cacheBustingParams = [];
+    
+    // Preserve cache-busting parameters
+    if (url.searchParams.has('v')) cacheBustingParams.push(`v=${url.searchParams.get('v')}`);
+    if (url.searchParams.has('r')) cacheBustingParams.push(`r=${url.searchParams.get('r')}`);
+    if (url.searchParams.has('fresh')) cacheBustingParams.push(`fresh=${url.searchParams.get('fresh')}`);
+    
+    // Build base URL
+    const baseUrl = buildViewUrl(ids.bucketId, ids.fileId);
+    
+    // Add cache-busting parameters back if they existed
+    if (cacheBustingParams.length > 0) {
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      return `${baseUrl}${separator}${cacheBustingParams.join('&')}`;
+    }
+    
+    return baseUrl;
   } catch {
     return urlStr;
   }
@@ -1066,6 +1084,76 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     safeOwner.administratorBeneficiary = { ...(owner.administratorBeneficiary || {}), validIdImages: out };
   }
 
+  // Auto-regenerate PDF and upload to Appwrite Storage when updating
+  let faasPdfUrl = '';
+  
+  // Check if PDF regeneration should be enabled (can be controlled by environment variable)
+  const ENABLE_PDF_REGENERATION = true; // Set to false to disable PDF regeneration during updates
+  
+  if (ENABLE_PDF_REGENERATION) {
+    try {
+      console.log('🔄 Auto-regenerating FAAS PDF during assessment update...');
+      
+      // Get existing assessment to check for current PDF
+      let existingAssessment = null;
+      try {
+        existingAssessment = await databases.getDocument(
+          String(config.databaseId),
+          String(config.assessmentsCollectionId),
+          id
+        );
+      } catch (fetchError) {
+        console.warn('⚠️ Could not fetch existing assessment for PDF overwrite:', fetchError);
+      }
+      
+      // Create assessment object in the format expected by FaasPrintService
+      const assessmentForPdf = {
+        ownerName: owner.owner || '',
+        owner_details: safeOwner,
+        building_location: safeLoc,
+        land_reference: {
+          ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
+          superseded_assessment: data?.superseded_assessment || {},
+          memoranda: data?.memoranda || {}
+        },
+        general_description: safeGD,
+        structural_materials: data?.structural_materials || {},
+        property_appraisal: safePA,
+        property_assessment: pa,
+        additionalItems: data?.additionalItems || { items: [], subTotal: 0, total: 0 },
+        superseded_assessment: data?.superseded_assessment || {},
+        memoranda: data?.memoranda || {},
+        pin: owner.pin || '',
+        tdArp: owner.tdArp || '',
+        transactionCode: owner.transactionCode || '',
+        barangay: loc.barangay || '',
+        municipality: loc.municipality || '',
+        province: loc.province || '',
+        // Include existing PDF URL for overwrite detection
+        faas: existingAssessment?.faas || ''
+      };
+      
+      // Generate and upload PDF to Appwrite Storage (with overwrite capability)
+      const pdfResult = await FaasPrintService.generatePDFForUpdate(assessmentForPdf, id);
+      
+      if (pdfResult.success && pdfResult.url) {
+        faasPdfUrl = pdfResult.url;
+        console.log('✅ FAAS PDF auto-regenerated and updated:', faasPdfUrl);
+        console.log('💾 NEW PDF URL will be saved to assessment faas field');
+      } else {
+        console.warn('⚠️ PDF regeneration failed during update:', pdfResult.error);
+        // Keep existing PDF URL if regeneration failed
+        faasPdfUrl = existingAssessment?.faas || '';
+        console.log('📄 Keeping existing PDF URL due to regeneration failure:', faasPdfUrl);
+      }
+    } catch (pdfError) {
+      console.warn('⚠️ Failed to auto-regenerate PDF during update:', pdfError);
+      // Continue with update even if PDF generation fails
+    }
+  } else {
+    console.log('📄 PDF regeneration disabled during updates');
+  }
+
   const doc: any = {
     updatedAt: new Date().toISOString(),
     userId: userId || undefined,
@@ -1084,6 +1172,8 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     additionalItem: data?.additionalItem || '',
     // Store superseded status only - all details are in JSON
     isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
+    // Include the regenerated PDF URL if available, or preserve existing one
+    faas: faasPdfUrl || data?.faas || '',
     owner_details: JSON.stringify(safeOwner || {}),
     building_location: JSON.stringify(safeLoc || {}),
     land_reference: JSON.stringify({
@@ -1098,7 +1188,17 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     additionalItems: JSON.stringify(data?.additionalItems || { items: [], subTotal: 0, total: 0 }),
   };
   Object.keys(doc).forEach((k) => { if (doc[k] === undefined) delete doc[k]; });
+  
+  // Log the PDF URL that will be saved to confirm it's the new one
+  console.log('💾 SAVING TO DATABASE - Assessment ID:', id);
+  console.log('💾 SAVING TO DATABASE - New FAAS PDF URL:', doc.faas);
+  console.log('💾 SAVING TO DATABASE - PDF URL Length:', doc.faas?.length || 0);
+  
   const res = await databases.updateDocument(String(config.databaseId), String(config.assessmentsCollectionId), id, doc);
+  
+  console.log('✅ DATABASE UPDATE COMPLETE - Assessment updated with new PDF URL');
+  console.log('🔗 FINAL SAVED PDF URL:', res.faas);
+  
   return res;
 }
 

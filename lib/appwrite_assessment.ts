@@ -270,23 +270,63 @@ export class AppwriteAssessmentService {
    * 3. Update document in Appwrite
    * 4. Return updated assessment
    */
-  static async updateAssessment(assessmentId: string, updates: Partial<Assessment>): Promise<Assessment> {
+  static async updateAssessment(assessmentId: string, updates: Partial<Assessment> & { data?: any }): Promise<Assessment> {
     // Ensure user session is valid
     await ensureSession();
     
-    // Prepare update data with metadata
-    const updateData = {
-      ...updates,                             // Spread the update fields
+    // Transform the update data to match Appwrite collection structure
+    const transformedUpdates: any = {
       updated_at: new Date().toISOString(),   // Update the timestamp
+      updatedAt: new Date().toISOString(),    // Appwrite format
       synced: true                            // Mark as synced
     };
+
+    // If updates contain nested data, extract indexed fields
+    if (updates.data) {
+      const data = updates.data;
+      
+      // Extract indexed fields for searching
+      if (data.owner_details?.owner) transformedUpdates.ownerName = data.owner_details.owner;
+      if (data.owner_details?.transactionCode) transformedUpdates.transactionCode = data.owner_details.transactionCode;
+      if (data.owner_details?.tdArp) transformedUpdates.tdArp = data.owner_details.tdArp;
+      if (data.owner_details?.pin) transformedUpdates.pin = data.owner_details.pin;
+      if (data.building_location?.barangay) transformedUpdates.barangay = data.building_location.barangay;
+      if (data.building_location?.municipality) transformedUpdates.municipality = data.building_location.municipality;
+      if (data.building_location?.province) transformedUpdates.province = data.building_location.province;
+      if (data.property_assessment?.market_value) transformedUpdates.marketValueTotal = data.property_assessment.market_value;
+      if (data.property_assessment?.taxable !== undefined) transformedUpdates.taxable = data.property_assessment.taxable;
+      if (data.property_assessment?.eff_year) transformedUpdates.effYear = data.property_assessment.eff_year;
+      if (data.property_assessment?.eff_quarter) transformedUpdates.effQuarter = data.property_assessment.eff_quarter;
+      if (data.property_assessment?.total_area) transformedUpdates.totalArea = data.property_assessment.total_area;
+      if (data.superseded_assessment?.pin) transformedUpdates.supersededBy = data.superseded_assessment.pin;
+      if (data.faas) transformedUpdates.faas = data.faas; // Include PDF URL
+      
+      // Store the complete nested objects
+      transformedUpdates.owner_details = data.owner_details || {};
+      transformedUpdates.building_location = data.building_location || {};
+      transformedUpdates.land_reference = data.land_reference || {};
+      transformedUpdates.general_description = data.general_description || {};
+      transformedUpdates.structural_materials = data.structural_materials || {};
+      transformedUpdates.property_appraisal = data.property_appraisal || {};
+      transformedUpdates.property_assessment = data.property_assessment || {};
+      transformedUpdates.superseded_assessment = data.superseded_assessment || {};
+      transformedUpdates.memoranda = data.memoranda || {};
+      transformedUpdates.additionalItems = data.additionalItems || {};
+    }
+
+    // Handle direct field updates (for backward compatibility)
+    Object.keys(updates).forEach(key => {
+      if (key !== 'data') {
+        transformedUpdates[key] = (updates as any)[key];
+      }
+    });
 
     // Update the document in Appwrite
     const response = await databases.updateDocument(
       this.DATABASE_ID,     // Target database
       this.COLLECTION_ID,   // Target collection
       assessmentId,         // Document ID to update
-      updateData            // Data to update
+      transformedUpdates    // Transformed data to update
     );
 
     return response as Assessment;

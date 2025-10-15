@@ -1121,6 +1121,265 @@ ${supersededContent}`;
     }
   }
 
+  // Enhanced PDF generation method that can overwrite existing PDFs
+  public static async generatePDFForUpdate(assessment: any, assessmentId?: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      console.log('🔄 Generating PDF for assessment update...', assessmentId ? `ID: ${assessmentId}` : 'New assessment');
+
+      // Load the base64 logo with timeout
+      let logoBase64 = '';
+      try {
+        logoBase64 = await Promise.race([
+          this.getLogoBase64(),
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('Logo loading timeout')), 5000)
+          )
+        ]);
+      } catch (logoError) {
+        console.warn('⚠️ Logo loading failed, continuing without logo:', logoError);
+        logoBase64 = ''; // Continue without logo
+      }
+
+      // Generate a consistent filename based on assessment ID or PIN
+      const pin = assessment?.pin || assessment?.owner_details?.pin || 'NoPin';
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 15);
+      
+      // Use assessment ID if available for consistent naming, otherwise use PIN
+      const identifier = assessmentId || pin;
+      const filename = `FAAS_${sanitizedOwnerName}_${identifier}.pdf`;
+
+      console.log('📝 Generating PDF with consistent filename:', filename);
+
+      // Generate HTML with error handling
+      let htmlContent = '';
+      try {
+        htmlContent = this.generatePrintHTML(assessment, logoBase64);
+        console.log('✅ HTML generated successfully, length:', htmlContent.length);
+      } catch (htmlError) {
+        console.error('❌ HTML generation failed:', htmlError);
+        throw new Error(`HTML generation failed: ${htmlError instanceof Error ? htmlError.message : String(htmlError)}`);
+      }
+
+      // Generate PDF with multiple attempts and different configurations
+      let pdfUri = '';
+      const pdfConfigs = [
+        // First attempt: Standard configuration
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: false,
+          margins: { left: 36, top: 36, right: 36, bottom: 36 }
+        },
+        // Second attempt: Smaller margins
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: false,
+          margins: { left: 20, top: 20, right: 20, bottom: 20 }
+        },
+        // Third attempt: Base64 format
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: true,
+          margins: { left: 36, top: 36, right: 36, bottom: 36 }
+        }
+      ];
+
+      for (let i = 0; i < pdfConfigs.length; i++) {
+        try {
+          console.log(`📄 PDF generation attempt ${i + 1}/${pdfConfigs.length}...`);
+          
+          const result = await Promise.race([
+            Print.printToFileAsync(pdfConfigs[i]),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('PDF generation timeout')), 15000)
+            )
+          ]);
+
+          pdfUri = result.uri;
+          console.log(`✅ PDF generated successfully on attempt ${i + 1}:`, pdfUri);
+          break;
+        } catch (pdfError) {
+          console.warn(`⚠️ PDF generation attempt ${i + 1} failed:`, pdfError);
+          if (i === pdfConfigs.length - 1) {
+            throw new Error(`All PDF generation attempts failed. Last error: ${pdfError instanceof Error ? pdfError.message : String(pdfError)}`);
+          }
+        }
+      }
+
+      if (!pdfUri) {
+        throw new Error('PDF generation failed - no URI returned');
+      }
+
+      // Verify the PDF file exists and has content
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(pdfUri);
+        if (!fileInfo.exists) {
+          throw new Error('PDF file was not created');
+        }
+        if (fileInfo.size === 0) {
+          throw new Error('PDF file is empty');
+        }
+        console.log('✅ PDF file verified:', { size: fileInfo.size, uri: pdfUri });
+      } catch (verifyError) {
+        console.warn('⚠️ PDF file verification failed:', verifyError);
+        // Continue anyway, maybe the file system check is unreliable
+      }
+
+      // ALWAYS delete old PDF first if it exists to ensure clean overwrite
+      if (assessment.faas && assessment.faas.trim() !== '') {
+        try {
+          console.log('🗑️ FORCE DELETING old PDF before uploading new one...', assessment.faas);
+          
+          // Enhanced URL parsing to extract file ID more reliably
+          // Remove cache-busting parameters first
+          const url = assessment.faas.trim().split('?')[0].split('&')[0];
+          let oldFileId = null;
+          
+          // Try multiple parsing methods to extract file ID
+          const patterns = [
+            /\/files\/([a-zA-Z0-9]+)\/view/,  // Standard pattern
+            /\/files\/([a-zA-Z0-9]+)/,       // Without /view
+            /files\/([a-zA-Z0-9]+)/          // Without leading slash
+          ];
+          
+          for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+              oldFileId = match[1];
+              break;
+            }
+          }
+          
+          if (oldFileId) {
+            console.log('🗑️ Extracted old file ID for deletion:', oldFileId);
+            
+            // FORCE delete the old file - make multiple attempts if needed
+            let deleteSuccess = false;
+            for (let deleteAttempt = 1; deleteAttempt <= 3; deleteAttempt++) {
+              try {
+                console.log(`🗑️ Delete attempt ${deleteAttempt}/3 for file ID:`, oldFileId);
+                await storage.deleteFile(config.bucketId!, oldFileId);
+                console.log('✅ OLD PDF SUCCESSFULLY DELETED!');
+                deleteSuccess = true;
+                break;
+              } catch (deleteError: any) {
+                console.warn(`⚠️ Delete attempt ${deleteAttempt} failed:`, deleteError?.message || deleteError);
+                if (deleteAttempt < 3) {
+                  // Wait before retry
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+            }
+            
+            if (!deleteSuccess) {
+              console.warn('⚠️ Failed to delete old PDF after 3 attempts, continuing with upload...');
+            }
+          } else {
+            console.warn('⚠️ Could not extract file ID from URL:', url);
+          }
+        } catch (parseError) {
+          console.warn('⚠️ Error during old PDF deletion process:', parseError);
+        }
+      } else {
+        console.log('📄 No existing PDF to delete, creating new one...');
+      }
+
+      // Upload PDF to Appwrite Storage with retry
+      console.log('☁️ Uploading PDF to Appwrite Storage...');
+      let uploadResult;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📤 Upload attempt ${attempt}/3...`);
+          uploadResult = await uploadSingleForDebug(pdfUri);
+          
+          if (uploadResult.ok) {
+            console.log(`✅ Upload successful on attempt ${attempt}:`, uploadResult.url);
+            break;
+          } else {
+            throw new Error(uploadResult.error || 'Upload failed');
+          }
+        } catch (uploadError) {
+          console.warn(`⚠️ Upload attempt ${attempt} failed:`, uploadError);
+          if (attempt === 3) {
+            throw new Error(`Upload failed after 3 attempts: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+          }
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+
+      if (!uploadResult?.ok || !uploadResult?.url) {
+        throw new Error('Upload failed - no URL returned');
+      }
+
+      // Extract and log the new file ID to confirm it's different
+      const baseUrl = uploadResult.url;
+      let newFileId = 'unknown';
+      try {
+        const patterns = [
+          /\/files\/([a-zA-Z0-9]+)\/view/,  // Standard pattern
+          /\/files\/([a-zA-Z0-9]+)/,       // Without /view
+          /files\/([a-zA-Z0-9]+)/          // Without leading slash
+        ];
+        
+        for (const pattern of patterns) {
+          const match = baseUrl.match(pattern);
+          if (match && match[1]) {
+            newFileId = match[1];
+            break;
+          }
+        }
+      } catch (parseError) {
+        console.warn('Could not extract new file ID:', parseError);
+      }
+
+      // Add cache-busting parameters to ensure browser always loads fresh PDF
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 15);
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      const cacheBustingUrl = `${baseUrl}${separator}v=${timestamp}&r=${randomId}&fresh=true`;
+
+      console.log('✅ PDF uploaded successfully for update!');
+      console.log('📄 BASE PDF URL:', baseUrl);
+      console.log('🔗 CACHE-BUSTING URL:', cacheBustingUrl);
+      console.log('🆔 NEW FILE ID:', newFileId);
+      console.log('⏰ TIMESTAMP:', timestamp);
+      console.log('🎲 RANDOM ID:', randomId);
+      console.log('🔄 PDF OVERWRITE COMPLETE - Old deleted, new uploaded with fresh ID and cache-busting');
+
+      return {
+        success: true,
+        url: cacheBustingUrl
+      };
+
+    } catch (error) {
+      console.error('❌ Error generating PDF for update:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log additional debugging information
+      console.error('📊 PDF Generation Debug Info:', {
+        assessmentId,
+        assessmentKeys: Object.keys(assessment || {}),
+        hasOwnerDetails: !!assessment?.owner_details,
+        hasOwnerName: !!(assessment?.ownerName || assessment?.owner_details?.owner),
+        platform: Platform.OS,
+        timestamp: new Date().toISOString()
+      });
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+
   // Silent PDF generation method for sync operations (no user dialogs)
   public static async generatePDFForSync(assessment: any): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
