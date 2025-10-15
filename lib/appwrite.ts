@@ -14,6 +14,7 @@ import * as Linking from "expo-linking";
 import { openAuthSessionAsync } from "expo-web-browser";
 import * as FileSystem from 'expo-file-system';
 import { getPendingAssessments, markAssessmentSynced } from "./local-db";
+import { FaasPrintService } from "../components/FaasPrintService";
 
 export const config = {
   platform: "com.ajncarz.restate",
@@ -738,6 +739,60 @@ export async function createAssessmentDocument(params: {
     safeOwner.administratorBeneficiary = { ...(owner.administratorBeneficiary || {}), validIdImages: out };
   }
 
+  // Auto-generate PDF and upload to Appwrite Storage
+  let faasPdfUrl = '';
+  
+  // Temporary flag to disable PDF generation during sync if needed
+  const ENABLE_PDF_GENERATION = true; // Set to false to disable PDF generation during sync
+  
+  if (ENABLE_PDF_GENERATION) {
+    try {
+      console.log('🔄 Auto-generating FAAS PDF during sync...');
+      
+      // Use the imported FaasPrintService
+      
+      // Create assessment object in the format expected by FaasPrintService
+      const assessmentForPdf = {
+        ownerName: owner.owner || '',
+        owner_details: safeOwner,
+        building_location: safeLoc,
+        land_reference: {
+          ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
+          superseded_assessment: data?.superseded_assessment || {},
+          memoranda: data?.memoranda || {}
+        },
+        general_description: safeGD,
+        structural_materials: data?.structural_materials || {},
+        property_appraisal: safePA,
+        property_assessment: propertyAssessment,
+        additionalItems: data?.additionalItems || { items: [], subTotal: 0, total: 0 },
+        superseded_assessment: data?.superseded_assessment || {},
+        memoranda: data?.memoranda || {},
+        pin: owner.pin || '',
+        tdArp: owner.tdArp || '',
+        transactionCode: owner.transactionCode || '',
+        barangay: loc.barangay || '',
+        municipality: loc.municipality || '',
+        province: loc.province || ''
+      };
+      
+      // Generate and upload PDF to Appwrite Storage (silent mode for sync)
+      const pdfResult = await FaasPrintService.generatePDFForSync(assessmentForPdf);
+      
+      if (pdfResult.success && pdfResult.url) {
+        faasPdfUrl = pdfResult.url;
+        console.log('✅ FAAS PDF auto-generated and saved:', faasPdfUrl);
+      } else {
+        console.warn('⚠️ PDF generation failed during sync:', pdfResult.error);
+      }
+    } catch (pdfError) {
+      console.warn('⚠️ Failed to auto-generate PDF during sync:', pdfError);
+      // Continue with sync even if PDF generation fails
+    }
+  } else {
+    console.log('📄 PDF generation disabled during sync');
+  }
+
   const doc: any = {
     clientLocalId: clientLocalId ? String(clientLocalId) : undefined,
     createdAt: createdAt || new Date().toISOString(),
@@ -762,6 +817,9 @@ export async function createAssessmentDocument(params: {
     
     // Store superseded status only - all details are in JSON
     isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
+    
+    // Store the auto-generated FAAS PDF URL
+    faas: faasPdfUrl,
 
   // JSON blobs are stored as strings per schema
   owner_details: JSON.stringify(safeOwner || {}),

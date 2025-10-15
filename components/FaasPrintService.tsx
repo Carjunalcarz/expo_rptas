@@ -3,6 +3,7 @@ import * as Sharing from 'expo-sharing';
 import { Alert, Image, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as WebBrowser from 'expo-web-browser';
+import { storage, config, uploadSingleForDebug } from '../lib/appwrite';
 // Note: expo-media-library needs to be installed: npm install expo-media-library
 // import * as MediaLibrary from 'expo-media-library';
 
@@ -803,6 +804,484 @@ ${supersededContent}`;
         `PDF has been generated successfully!\n\nFilename: ${filename}\nLocation: ${uri}\n\nNote: Sharing is not available on this device.`,
         [{ text: 'OK', onPress: () => console.log('PDF generation acknowledged by user') }]
       );
+    }
+  }
+
+  // Enhanced PDF save method that uploads to Appwrite Storage
+  public static async savePDFToAppwrite(assessment: any): Promise<{ success: boolean; fileId?: string; url?: string; error?: string }> {
+    try {
+      console.log('☁️ Starting PDF save to Appwrite Storage...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const pin = assessment?.pin || assessment?.owner_details?.pin || 'NoPin';
+      const filename = `FAAS_${sanitizedOwnerName}_${pin}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF to temporary file
+      const { uri } = await Print.printToFileAsync({
+        html: this.generatePrintHTML(assessment, logoBase64),
+        width: 612,
+        height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+
+      console.log('✅ PDF generated at temporary location:', uri);
+
+      // Upload PDF to Appwrite Storage
+      console.log('☁️ Uploading PDF to Appwrite Storage...');
+      const uploadResult = await uploadSingleForDebug(uri);
+      
+      if (!uploadResult.ok) {
+        throw new Error(uploadResult.error || 'Upload failed');
+      }
+
+      console.log('✅ PDF uploaded successfully:', uploadResult.url);
+
+      // Show success message with options
+      Alert.alert(
+        '✅ PDF Saved to Cloud',
+        `PDF successfully saved to Appwrite Storage!\n\nFile: ${filename}\nURL: ${uploadResult.url}\n\nThe PDF is now accessible from any device and backed up in the cloud.`,
+        [
+          {
+            text: 'Share PDF',
+            onPress: async () => {
+              try {
+                await Sharing.shareAsync(uri, {
+                  mimeType: 'application/pdf',
+                  dialogTitle: `Share ${filename}`,
+                  UTI: 'com.adobe.pdf',
+                });
+              } catch (shareError) {
+                console.error('Share error:', shareError);
+              }
+            }
+          },
+          {
+            text: 'OK',
+            style: 'default',
+            onPress: () => console.log('✅ PDF save to Appwrite acknowledged by user')
+          }
+        ]
+      );
+
+      return {
+        success: true,
+        url: uploadResult.url
+      };
+
+    } catch (error) {
+      console.error('❌ Error saving PDF to Appwrite:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      Alert.alert(
+        'Cloud Save Failed',
+        `Failed to save PDF to Appwrite Storage: ${errorMessage}\n\nThe PDF may have been generated locally but could not be uploaded to the cloud. Please check your internet connection and try again.`,
+        [
+          {
+            text: 'Try Local Save',
+            onPress: () => this.savePDF(assessment)
+          },
+          {
+            text: 'OK',
+            onPress: () => console.log('PDF Appwrite save error acknowledged by user')
+          }
+        ]
+      );
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+
+  // Enhanced method that saves both locally and to Appwrite
+  public static async savePDFBoth(assessment: any): Promise<void> {
+    try {
+      console.log('💾☁️ Starting dual PDF save (local + Appwrite)...');
+
+      // Load the base64 logo
+      const logoBase64 = await this.getLogoBase64();
+      console.log('🖼️ Logo loaded for PDF');
+
+      // Generate a unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const pin = assessment?.pin || assessment?.owner_details?.pin || 'NoPin';
+      const filename = `FAAS_${sanitizedOwnerName}_${pin}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: this.generatePrintHTML(assessment, logoBase64),
+        width: 612,
+        height: 792,
+        base64: false,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+
+      console.log('✅ PDF generated at:', uri);
+
+      // Try to upload to Appwrite in parallel with local sharing
+      let appwriteResult: { success: boolean; fileId?: string; url?: string } = { success: false };
+      
+      try {
+        console.log('☁️ Uploading to Appwrite Storage...');
+        const uploadResult = await uploadSingleForDebug(uri);
+        if (uploadResult.ok) {
+          appwriteResult = {
+            success: true,
+            url: uploadResult.url
+          };
+          console.log('✅ Appwrite upload successful:', uploadResult.url);
+        } else {
+          throw new Error(uploadResult.error || 'Upload failed');
+        }
+      } catch (uploadError) {
+        console.warn('⚠️ Appwrite upload failed, continuing with local save:', uploadError);
+        appwriteResult = { success: false };
+      }
+
+      // Show local sharing dialog
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (isAvailable) {
+        const statusMessage = appwriteResult.success 
+          ? `✅ Saved to Cloud Storage\n📱 Choose local save option below:`
+          : `⚠️ Cloud save failed, but PDF is ready for local save:`;
+
+        Alert.alert(
+          '📄 Save PDF',
+          `${statusMessage}\n\nFile: ${filename}\n\n📱 Android: Choose "Download" or file manager\n🍎 iOS: Choose "Save to Files" > "Downloads"\n☁️ Cloud: Save to Google Drive, OneDrive, etc.`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => console.log('PDF save cancelled by user')
+            },
+            {
+              text: 'Save Locally',
+              onPress: async () => {
+                try {
+                  await Sharing.shareAsync(uri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: `Save ${filename}`,
+                    UTI: 'com.adobe.pdf',
+                  });
+
+                  // Show final status
+                  setTimeout(() => {
+                    const finalMessage = appwriteResult.success
+                      ? `✅ PDF saved successfully!\n\n☁️ Cloud: Backed up to Appwrite Storage\n📱 Local: Available in your chosen location\n\nURL: ${appwriteResult.url}`
+                      : `📱 PDF saved locally!\n\n⚠️ Note: Cloud backup failed, but your PDF is saved on this device.`;
+
+                    Alert.alert('Save Complete', finalMessage, [{ text: 'Got it!' }]);
+                  }, 1000);
+                } catch (shareError) {
+                  console.error('Share error:', shareError);
+                  Alert.alert('Share Failed', 'Could not open save dialog. Please try again.');
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        // Fallback when sharing is not available
+        const message = appwriteResult.success
+          ? `✅ PDF saved to Appwrite Storage!\n\nURL: ${appwriteResult.url}\nLocal file: ${uri}\n\nNote: Local sharing not available on this device, but PDF is backed up in the cloud.`
+          : `PDF generated but could not be saved!\n\nLocal file: ${uri}\nSharing not available and cloud save failed.`;
+
+        Alert.alert('PDF Status', message, [{ text: 'OK' }]);
+      }
+
+    } catch (error) {
+      console.error('❌ Error in dual PDF save:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'PDF Save Failed',
+        `Failed to generate or save PDF: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  // Method to retrieve saved PDFs from Appwrite
+  public static async listSavedPDFs(): Promise<{ success: boolean; files?: any[]; error?: string }> {
+    try {
+      console.log('📋 Fetching saved PDFs from Appwrite Storage...');
+      
+      if (!config.bucketId) {
+        throw new Error('Storage bucket not configured');
+      }
+
+      // List files in the bucket (PDFs will be mixed with other files)
+      const result = await storage.listFiles(config.bucketId);
+      
+      // Filter for PDF files
+      const pdfFiles = result.files.filter((file: any) => 
+        file.name.toLowerCase().includes('.pdf') || 
+        file.name.toLowerCase().includes('faas') ||
+        file.mimeType === 'application/pdf'
+      );
+
+      console.log(`✅ Found ${pdfFiles.length} PDF files in storage`);
+
+      return {
+        success: true,
+        files: pdfFiles
+      };
+
+    } catch (error) {
+      console.error('❌ Error listing PDFs from Appwrite:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+
+  // Method to download a specific PDF from Appwrite
+  public static async downloadPDFFromAppwrite(fileId: string, fileName?: string): Promise<void> {
+    try {
+      console.log('📥 Downloading PDF from Appwrite Storage:', fileId);
+      
+      if (!config.bucketId) {
+        throw new Error('Storage bucket not configured');
+      }
+
+      // Get the file view URL
+      const fileUrl = storage.getFileView(config.bucketId, fileId).toString();
+      console.log('📄 PDF URL generated:', fileUrl);
+
+      // Use the sharing system to let user save the PDF
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (isAvailable) {
+        Alert.alert(
+          '📥 Download PDF from Cloud',
+          `Ready to download: ${fileName || fileId}\n\nThis will open your device's save options.`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            },
+            {
+              text: 'Download',
+              onPress: async () => {
+                try {
+                  // Open the URL which should trigger download/save options
+                  await WebBrowser.openBrowserAsync(fileUrl);
+                } catch (browserError) {
+                  console.error('Browser open error:', browserError);
+                  Alert.alert('Download Failed', 'Could not open PDF for download. Please try again.');
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'PDF Available',
+          `PDF URL: ${fileUrl}\n\nCopy this URL to download the PDF in your browser.`,
+          [{ text: 'OK' }]
+        );
+      }
+
+    } catch (error) {
+      console.error('❌ Error downloading PDF from Appwrite:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'Download Failed',
+        `Failed to download PDF: ${errorMessage}`,
+        [{ text: 'OK' }]
+      );
+    }
+  }
+
+  // Silent PDF generation method for sync operations (no user dialogs)
+  public static async generatePDFForSync(assessment: any): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      console.log('🔄 Generating PDF for sync operation...');
+
+      // Load the base64 logo with timeout
+      let logoBase64 = '';
+      try {
+        logoBase64 = await Promise.race([
+          this.getLogoBase64(),
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('Logo loading timeout')), 5000)
+          )
+        ]);
+      } catch (logoError) {
+        console.warn('⚠️ Logo loading failed, continuing without logo:', logoError);
+        logoBase64 = ''; // Continue without logo
+      }
+
+      // Generate a unique filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const ownerName = assessment?.ownerName || assessment?.owner_details?.owner || 'Unknown';
+      const sanitizedOwnerName = ownerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+      const pin = assessment?.pin || assessment?.owner_details?.pin || 'NoPin';
+      const filename = `FAAS_${sanitizedOwnerName}_${pin}_${timestamp}.pdf`;
+
+      console.log('📝 Generating PDF with filename:', filename);
+
+      // Generate HTML with error handling
+      let htmlContent = '';
+      try {
+        htmlContent = this.generatePrintHTML(assessment, logoBase64);
+        console.log('✅ HTML generated successfully, length:', htmlContent.length);
+      } catch (htmlError) {
+        console.error('❌ HTML generation failed:', htmlError);
+        throw new Error(`HTML generation failed: ${htmlError instanceof Error ? htmlError.message : String(htmlError)}`);
+      }
+
+      // Generate PDF with multiple attempts and different configurations
+      let pdfUri = '';
+      const pdfConfigs = [
+        // First attempt: Standard configuration
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: false,
+          margins: { left: 36, top: 36, right: 36, bottom: 36 }
+        },
+        // Second attempt: Smaller margins
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: false,
+          margins: { left: 20, top: 20, right: 20, bottom: 20 }
+        },
+        // Third attempt: Base64 format
+        {
+          html: htmlContent,
+          width: 612,
+          height: 792,
+          base64: true,
+          margins: { left: 36, top: 36, right: 36, bottom: 36 }
+        }
+      ];
+
+      for (let i = 0; i < pdfConfigs.length; i++) {
+        try {
+          console.log(`📄 PDF generation attempt ${i + 1}/${pdfConfigs.length}...`);
+          
+          const result = await Promise.race([
+            Print.printToFileAsync(pdfConfigs[i]),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('PDF generation timeout')), 15000)
+            )
+          ]);
+
+          pdfUri = result.uri;
+          console.log(`✅ PDF generated successfully on attempt ${i + 1}:`, pdfUri);
+          break;
+        } catch (pdfError) {
+          console.warn(`⚠️ PDF generation attempt ${i + 1} failed:`, pdfError);
+          if (i === pdfConfigs.length - 1) {
+            throw new Error(`All PDF generation attempts failed. Last error: ${pdfError instanceof Error ? pdfError.message : String(pdfError)}`);
+          }
+        }
+      }
+
+      if (!pdfUri) {
+        throw new Error('PDF generation failed - no URI returned');
+      }
+
+      // Verify the PDF file exists and has content
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(pdfUri);
+        if (!fileInfo.exists) {
+          throw new Error('PDF file was not created');
+        }
+        if (fileInfo.size === 0) {
+          throw new Error('PDF file is empty');
+        }
+        console.log('✅ PDF file verified:', { size: fileInfo.size, uri: pdfUri });
+      } catch (verifyError) {
+        console.warn('⚠️ PDF file verification failed:', verifyError);
+        // Continue anyway, maybe the file system check is unreliable
+      }
+
+      // Upload PDF to Appwrite Storage with retry
+      console.log('☁️ Uploading PDF to Appwrite Storage...');
+      let uploadResult;
+      
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📤 Upload attempt ${attempt}/3...`);
+          uploadResult = await uploadSingleForDebug(pdfUri);
+          
+          if (uploadResult.ok) {
+            console.log(`✅ Upload successful on attempt ${attempt}:`, uploadResult.url);
+            break;
+          } else {
+            throw new Error(uploadResult.error || 'Upload failed');
+          }
+        } catch (uploadError) {
+          console.warn(`⚠️ Upload attempt ${attempt} failed:`, uploadError);
+          if (attempt === 3) {
+            throw new Error(`Upload failed after 3 attempts: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+          }
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+
+      if (!uploadResult?.ok || !uploadResult?.url) {
+        throw new Error('Upload failed - no URL returned');
+      }
+
+      console.log('✅ PDF uploaded successfully for sync:', uploadResult.url);
+
+      return {
+        success: true,
+        url: uploadResult.url
+      };
+
+    } catch (error) {
+      console.error('❌ Error generating PDF for sync:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log additional debugging information
+      console.error('📊 PDF Generation Debug Info:', {
+        assessmentKeys: Object.keys(assessment || {}),
+        hasOwnerDetails: !!assessment?.owner_details,
+        hasOwnerName: !!(assessment?.ownerName || assessment?.owner_details?.owner),
+        platform: Platform.OS,
+        timestamp: new Date().toISOString()
+      });
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
     }
   }
 
