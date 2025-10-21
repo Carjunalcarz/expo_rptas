@@ -129,6 +129,12 @@ export default function EditAssessmentScreen() {
                         };
                     }
 
+                    // Ensure TDN/ARD ID is properly mapped from flat field to owner_details
+                    if (out.tdArp && (!out.owner_details || !out.owner_details.tdArp)) {
+                        if (!out.owner_details) out.owner_details = {};
+                        out.owner_details.tdArp = out.tdArp;
+                    }
+
                     return out;
                 };
 

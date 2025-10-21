@@ -1544,6 +1544,54 @@ ${supersededContent}`;
     }
   }
 
+  // Get FAAS PDF history for an assessment
+  public static getFaasHistory(assessment: any): Array<{url: string, timestamp: string, version: number, action: string, tdArp?: string}> {
+    try {
+      if (assessment?.faas) {
+        try {
+          // Try to parse as new JSON format with history
+          const faasData = JSON.parse(assessment.faas);
+          if (faasData.history && Array.isArray(faasData.history)) {
+            return faasData.history;
+          }
+        } catch {
+          // Fallback: treat as old string format
+          return [{
+            url: assessment.faas,
+            timestamp: assessment.$updatedAt || assessment.$createdAt || new Date().toISOString(),
+            version: 1,
+            action: 'created',
+            tdArp: assessment.tdArp || undefined
+          }];
+        }
+      }
+      return [];
+    } catch (error) {
+      console.warn('Error parsing FAAS history:', error);
+      return [];
+    }
+  }
+
+  // Get the latest FAAS PDF URL
+  public static getLatestFaasPdf(assessment: any): string | null {
+    try {
+      if (assessment?.faas) {
+        try {
+          // Try to parse as new JSON format
+          const faasData = JSON.parse(assessment.faas);
+          return faasData.current || null;
+        } catch {
+          // Fallback: treat as old string format
+          return assessment.faas;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('Error parsing FAAS data:', error);
+      return null;
+    }
+  }
+
   // Test method to debug image loading
   public static async testImageLoading(): Promise<void> {
     try {

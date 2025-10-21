@@ -757,7 +757,185 @@ export async function createAssessmentDocument(params: {
     safeOwner.administratorBeneficiary = { ...(owner.administratorBeneficiary || {}), validIdImages: out };
   }
 
-  // Auto-generate PDF and upload to Appwrite Storage
+  // Generate TDN/ARD ID first, then generate PDF with the final ID
+
+  // Generate TDN/ARD ID during sync to ensure accurate count
+  let finalTdArp = owner.tdArp || '';
+  
+  // Check if TDN/ARD ID needs count digit added (offline format: YY-MM-BB)
+  const needsCountDigit = finalTdArp && finalTdArp.split('-').length === 3;
+  
+  if ((loc.municipality && loc.barangay) && (!finalTdArp || needsCountDigit)) {
+    try {
+      // Query existing records for this municipality-barangay combination
+      // Note: This is for a new document, so no need to exclude current document
+      const existingRecords = await databases.listDocuments(
+        String(config.databaseId),
+        String(config.assessmentsCollectionId),
+        [
+          Query.equal('municipality', loc.municipality),
+          Query.equal('barangay', loc.barangay),
+          Query.limit(1000) // Adjust limit as needed
+        ]
+      );
+
+      // Extract all existing TDN/ARD IDs and get their count numbers
+      const existingIds = new Set<string>();
+      const existingCounts = new Set<number>();
+      
+      existingRecords.documents.forEach((doc: any) => {
+        if (doc.tdArp) {
+          existingIds.add(doc.tdArp);
+          // Extract count from TDN format: YY-MM-BB-CC
+          const parts = doc.tdArp.split('-');
+          if (parts.length === 4) {
+            const count = parseInt(parts[3], 10);
+            if (!isNaN(count)) {
+              existingCounts.add(count);
+            }
+          }
+        }
+      });
+
+      // Find the next available count number
+      let nextCount = 1;
+      while (existingCounts.has(nextCount)) {
+        nextCount++;
+      }
+
+      // Municipality codes mapping
+      const municipalityList = [
+        { name: "Buenavista", code: "01" },
+        { name: "Cabadbaran", code: "02" },
+        { name: "Carmen", code: "03" },
+        { name: "Jabonga", code: "04" },
+        { name: "Kitcharao", code: "05" },
+        { name: "Las Nieves", code: "06" },
+        { name: "Magallanes", code: "07" },
+        { name: "Nasipit", code: "08" },
+        { name: "Remedios T. Romualdez", code: "09" },
+        { name: "Santiago", code: "10" },
+        { name: "Tubay", code: "11" }
+      ];
+
+      // Barangay mapping
+      const barangaySuggestion: { [key: string]: string[] } = {
+        "Buenavista": [
+          "Abilan", "Agong-ong", "Alubijid", "Guinabsan", "Lower Olave",
+          "Macalang", "Malapong", "Malpoc", "Manapa", "Matabao",
+          "Poblacion 1", "Poblacion 2", "Poblacion 3", "Poblacion 4",
+          "Poblacion 5", "Poblacion 6", "Poblacion 7", "Poblacion 8",
+          "Poblacion 9", "Poblacion 10", "Rizal", "Sacol", "Sangay",
+          "Simbalan", "Talo-ao"
+        ],
+        "Cabadbaran": [
+          "Antonio Luna", "Bay-ang", "Bayabas", "Caasinan", "Cabinet",
+          "Calamba", "Calibunan", "Comagascas", "Concepcion", "Del Pilar",
+          "Katugasan", "Kauswagan", "La Union", "Mabini", "Mahaba",
+          "Poblacion 1", "Poblacion 2", "Poblacion 3", "Poblacion 4",
+          "Poblacion 5", "Poblacion 6", "Poblacion 7", "Poblacion 8",
+          "Poblacion 9", "Poblacion 10", "Poblacion 11", "Poblacion 12",
+          "Puting Bato", "Sanghan", "Soriano", "Tolosa"
+        ],
+        "Carmen": [
+          "Cahayagan", "Gosoon", "Manoligao", "Poblacion", "Rojales",
+          "San Agustin", "Tagcatong", "Vinapor"
+        ],
+        "Jabonga": [
+          "A. Beltran", "Baleguian", "Bangonay", "Bunga", "Colorado",
+          "Cuyago", "Libas", "Magdagooc", "Magsaysay", "Maraiging",
+          "Poblacion", "San Jose", "San Pablo", "San Vicente", "Santo Niño"
+        ],
+        "Kitcharao": [
+          "Bangayan", "Canaway", "Crossing", "Hinimbangan", "Jaliobong",
+          "Mahayahay", "Poblacion", "San Isidro", "San Roque", "Sangay",
+          "Songkoy"
+        ],
+        "Las Nieves": [
+          "Ambacon", "Balungagan", "Bonifacio", "Casiklan", "Consorcia",
+          "Durian", "Eduardo G. Montilla", "Ibuan", "Katipunan", "Lingayao",
+          "Malicato", "Maningalao", "Marcos Calo", "Mat-i", "Pinana-an",
+          "Poblacion", "Rosario", "San Isidro", "San Roque", "Tinucoran"
+        ],
+        "Magallanes": [
+          "Buhang", "Caloc-an", "Guiasan", "Marcos", "Poblacion",
+          "Santo Niño", "Santo Rosario", "Taod-oy"
+        ],
+        "Nasipit": [
+          "Aclan", "Amontay", "Ata-atahon", "Barangay 1", "Barangay 2",
+          "Barangay 3", "Barangay 4", "Barangay 5", "Barangay 6",
+          "Barangay 7", "Camagong", "Cubi-cubi", "Culit", "Jaguimitan",
+          "Kinabjangan", "Punta", "Santa Ana", "Talisay", "Triangulo"
+        ],
+        "Remedios T. Romualdez": [
+          "Balangbalang", "Basilisa", "Humilog", "Panaytayon",
+          "Poblacion I", "Poblacion II", "San Antonio", "Tagbongabong"
+        ],
+        "Santiago": [
+          "Curva", "Estanislao Morgado", "Jagupit", "La Paz",
+          "Pangaylan-IP", "Poblacion I", "Poblacion II", "San Isidro",
+          "Tagbuyacan"
+        ],
+        "Tubay": [
+          "Binuangan", "Cabayawa", "Doña Rosario", "Doña Telesfora",
+          "La Fraternidad", "Lawigan", "Poblacion 1", "Poblacion 2",
+          "Santa Ana", "Tagmamarkay", "Tagpangahoy", "Tinigbasan", "Victory"
+        ]
+      };
+
+      const currentYear = new Date().getFullYear();
+      const revisionYear = currentYear.toString().slice(-2);
+      
+      const municipalityInfo = municipalityList.find(m => m.name === loc.municipality);
+      if (municipalityInfo) {
+        const barangayList = barangaySuggestion[loc.municipality];
+        if (barangayList) {
+          const barangayIndex = barangayList.indexOf(loc.barangay);
+          if (barangayIndex !== -1) {
+            const barangayCode = String(barangayIndex + 1).padStart(2, '0');
+            const countCode = String(nextCount).padStart(2, '0');
+            
+            if (needsCountDigit) {
+              // Add count digit to existing offline TDN/ARD ID
+              finalTdArp = `${finalTdArp}-${countCode}`;
+              console.log(`Added count digit to offline TDN/ARD ID: ${finalTdArp} (count: ${nextCount})`);
+            } else {
+              // Generate complete TDN/ARD ID from scratch
+              finalTdArp = `${revisionYear}-${municipalityInfo.code}-${barangayCode}-${countCode}`;
+              console.log(`Generated complete TDN/ARD ID during sync: ${finalTdArp} (count: ${nextCount})`);
+            }
+            
+            // Double-check that this ID doesn't already exist
+            if (existingIds.has(finalTdArp)) {
+              // If somehow it exists, increment until we find a unique one
+              let attempts = 0;
+              while (existingIds.has(finalTdArp) && attempts < 100) {
+                nextCount++;
+                const newCountCode = String(nextCount).padStart(2, '0');
+                if (needsCountDigit) {
+                  // Replace the count part for offline ID
+                  const baseParts = owner.tdArp.split('-');
+                  finalTdArp = `${baseParts.join('-')}-${newCountCode}`;
+                } else {
+                  finalTdArp = `${revisionYear}-${municipalityInfo.code}-${barangayCode}-${newCountCode}`;
+                }
+                attempts++;
+              }
+              console.log(`Resolved TDN/ARD ID collision: ${finalTdArp} (attempt ${attempts})`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to generate TDN/ARD ID during sync:', error);
+      // Keep the original tdArp if generation fails
+    }
+  }
+
+  // Update the owner data with the final TDN/ARD ID
+  const updatedOwner = { ...safeOwner, tdArp: finalTdArp };
+
+  // Auto-generate PDF with the final TDN/ARD ID
   let faasPdfUrl = '';
   
   // Temporary flag to disable PDF generation during sync if needed
@@ -765,14 +943,12 @@ export async function createAssessmentDocument(params: {
   
   if (ENABLE_PDF_GENERATION) {
     try {
-      console.log('🔄 Auto-generating FAAS PDF during sync...');
-      
-      // Use the imported FaasPrintService
+      console.log('🔄 Auto-generating FAAS PDF during sync with final TDN/ARD ID...');
       
       // Create assessment object in the format expected by FaasPrintService
       const assessmentForPdf = {
         ownerName: owner.owner || '',
-        owner_details: safeOwner,
+        owner_details: updatedOwner, // Use updatedOwner with final TDN/ARD ID
         building_location: safeLoc,
         land_reference: {
           ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
@@ -787,7 +963,7 @@ export async function createAssessmentDocument(params: {
         superseded_assessment: data?.superseded_assessment || {},
         memoranda: data?.memoranda || {},
         pin: owner.pin || '',
-        tdArp: owner.tdArp || '',
+        tdArp: finalTdArp, // Use final TDN/ARD ID with count digit
         transactionCode: owner.transactionCode || '',
         barangay: loc.barangay || '',
         municipality: loc.municipality || '',
@@ -799,7 +975,7 @@ export async function createAssessmentDocument(params: {
       
       if (pdfResult.success && pdfResult.url) {
         faasPdfUrl = pdfResult.url;
-        console.log('✅ FAAS PDF auto-generated and saved:', faasPdfUrl);
+        console.log('✅ FAAS PDF auto-generated with final TDN/ARD ID:', faasPdfUrl);
       } else {
         console.warn('⚠️ PDF generation failed during sync:', pdfResult.error);
       }
@@ -820,7 +996,7 @@ export async function createAssessmentDocument(params: {
 
     ownerName: owner.owner || '',
     transactionCode: owner.transactionCode || '',
-    tdArp: owner.tdArp || '',
+    tdArp: finalTdArp,
     pin: owner.pin || '',
     barangay: loc.barangay || '',
     municipality: loc.municipality || '',
@@ -836,11 +1012,20 @@ export async function createAssessmentDocument(params: {
     // Store superseded status only - all details are in JSON
     isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
     
-    // Store the auto-generated FAAS PDF URL
-    faas: faasPdfUrl,
+    // Store the auto-generated FAAS PDF URL with history in the existing faas field
+    faas: JSON.stringify({
+      current: faasPdfUrl,
+      history: faasPdfUrl ? [{
+        url: faasPdfUrl,
+        timestamp: new Date().toISOString(),
+        version: 1,
+        action: 'created',
+        tdArp: finalTdArp // Store TDN/ARD ID with this version
+      }] : []
+    }),
 
   // JSON blobs are stored as strings per schema
-  owner_details: JSON.stringify(safeOwner || {}),
+  owner_details: JSON.stringify(updatedOwner || {}),
   building_location: JSON.stringify(safeLoc || {}),
   land_reference: JSON.stringify({
     ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
@@ -1084,18 +1269,154 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     safeOwner.administratorBeneficiary = { ...(owner.administratorBeneficiary || {}), validIdImages: out };
   }
 
+  // Generate TDN/ARD ID during update if needed
+  let finalTdArp = owner.tdArp || '';
+  
+  // Check if TDN/ARD ID needs count digit added (offline format: YY-MM-BB)
+  const needsCountDigit = finalTdArp && finalTdArp.split('-').length === 3;
+  const isAlreadyComplete = finalTdArp && finalTdArp.split('-').length === 4;
+  
+  console.log('TDN/ARD ID Update Check:', {
+    originalTdArp: owner.tdArp,
+    finalTdArp,
+    needsCountDigit,
+    isAlreadyComplete,
+    shouldProcess: (loc.municipality && loc.barangay) && (!finalTdArp || needsCountDigit)
+  });
+  
+  if ((loc.municipality && loc.barangay) && (!finalTdArp || needsCountDigit)) {
+    try {
+      // Query existing records for this municipality-barangay combination
+      // Exclude current document from count
+      const existingRecords = await databases.listDocuments(
+        String(config.databaseId),
+        String(config.assessmentsCollectionId),
+        [
+          Query.equal('municipality', loc.municipality),
+          Query.equal('barangay', loc.barangay),
+          Query.notEqual('$id', id), // Exclude current document
+          Query.limit(1000)
+        ]
+      );
+
+      // Extract all existing TDN/ARD IDs and get their count numbers
+      const existingIds = new Set<string>();
+      const existingCounts = new Set<number>();
+      
+      existingRecords.documents.forEach((doc: any) => {
+        if (doc.tdArp) {
+          existingIds.add(doc.tdArp);
+          // Extract count from TDN format: YY-MM-BB-CC
+          const parts = doc.tdArp.split('-');
+          if (parts.length === 4) {
+            const count = parseInt(parts[3], 10);
+            if (!isNaN(count)) {
+              existingCounts.add(count);
+            }
+          }
+        }
+      });
+
+      // Find the next available count number
+      let nextCount = 1;
+      while (existingCounts.has(nextCount)) {
+        nextCount++;
+      }
+
+      // Municipality codes mapping
+      const municipalityList = [
+        { name: "Buenavista", code: "01" },
+        { name: "Cabadbaran", code: "02" },
+        { name: "Carmen", code: "03" },
+        { name: "Jabonga", code: "04" },
+        { name: "Kitcharao", code: "05" },
+        { name: "Las Nieves", code: "06" },
+        { name: "Magallanes", code: "07" },
+        { name: "Nasipit", code: "08" },
+        { name: "Remedios T. Romualdez", code: "09" },
+        { name: "Santiago", code: "10" },
+        { name: "Tubay", code: "11" }
+      ];
+
+      // Barangay mapping
+      const barangaySuggestion: { [key: string]: string[] } = {
+        "Buenavista": ["Abilan", "Agong-ong", "Alubijid", "Guinabsan", "Lower Olave", "Macalang", "Malapong", "Malpoc", "Manapa", "Matabao", "Poblacion 1", "Poblacion 2", "Poblacion 3", "Poblacion 4", "Poblacion 5", "Poblacion 6", "Poblacion 7", "Poblacion 8", "Poblacion 9", "Poblacion 10", "Rizal", "Sacol", "Sangay", "Simbalan", "Talo-ao"],
+        "Cabadbaran": ["Antonio Luna", "Bay-ang", "Bayabas", "Caasinan", "Cabinet", "Calamba", "Calibunan", "Comagascas", "Concepcion", "Del Pilar", "Katugasan", "Kauswagan", "La Union", "Mabini", "Mahaba", "Poblacion 1", "Poblacion 2", "Poblacion 3", "Poblacion 4", "Poblacion 5", "Poblacion 6", "Poblacion 7", "Poblacion 8", "Poblacion 9", "Poblacion 10", "Poblacion 11", "Poblacion 12", "Puting Bato", "Sanghan", "Soriano", "Tolosa"],
+        "Carmen": ["Cahayagan", "Gosoon", "Manoligao", "Poblacion", "Rojales", "San Agustin", "Tagcatong", "Vinapor"],
+        "Jabonga": ["A. Beltran", "Baleguian", "Bangonay", "Bunga", "Colorado", "Cuyago", "Libas", "Magdagooc", "Magsaysay", "Maraiging", "Poblacion", "San Jose", "San Pablo", "San Vicente", "Santo Niño"],
+        "Kitcharao": ["Bangayan", "Canaway", "Crossing", "Hinimbangan", "Jaliobong", "Mahayahay", "Poblacion", "San Isidro", "San Roque", "Sangay", "Songkoy"],
+        "Las Nieves": ["Ambacon", "Balungagan", "Bonifacio", "Casiklan", "Consorcia", "Durian", "Eduardo G. Montilla", "Ibuan", "Katipunan", "Lingayao", "Malicato", "Maningalao", "Marcos Calo", "Mat-i", "Pinana-an", "Poblacion", "Rosario", "San Isidro", "San Roque", "Tinucoran"],
+        "Magallanes": ["Buhang", "Caloc-an", "Guiasan", "Marcos", "Poblacion", "Santo Niño", "Santo Rosario", "Taod-oy"],
+        "Nasipit": ["Aclan", "Amontay", "Ata-atahon", "Barangay 1", "Barangay 2", "Barangay 3", "Barangay 4", "Barangay 5", "Barangay 6", "Barangay 7", "Camagong", "Cubi-cubi", "Culit", "Jaguimitan", "Kinabjangan", "Punta", "Santa Ana", "Talisay", "Triangulo"],
+        "Remedios T. Romualdez": ["Balangbalang", "Basilisa", "Humilog", "Panaytayon", "Poblacion I", "Poblacion II", "San Antonio", "Tagbongabong"],
+        "Santiago": ["Curva", "Estanislao Morgado", "Jagupit", "La Paz", "Pangaylan-IP", "Poblacion I", "Poblacion II", "San Isidro", "Tagbuyacan"],
+        "Tubay": ["Binuangan", "Cabayawa", "Doña Rosario", "Doña Telesfora", "La Fraternidad", "Lawigan", "Poblacion 1", "Poblacion 2", "Santa Ana", "Tagmamarkay", "Tagpangahoy", "Tinigbasan", "Victory"]
+      };
+
+      const currentYear = new Date().getFullYear();
+      const revisionYear = currentYear.toString().slice(-2);
+      
+      const municipalityInfo = municipalityList.find(m => m.name === loc.municipality);
+      if (municipalityInfo) {
+        const barangayList = barangaySuggestion[loc.municipality];
+        if (barangayList) {
+          const barangayIndex = barangayList.indexOf(loc.barangay);
+          if (barangayIndex !== -1) {
+            const barangayCode = String(barangayIndex + 1).padStart(2, '0');
+            const countCode = String(nextCount).padStart(2, '0');
+            
+            if (needsCountDigit) {
+              // Add count digit to existing offline TDN/ARD ID
+              finalTdArp = `${finalTdArp}-${countCode}`;
+              console.log(`Added count digit to offline TDN/ARD ID during update: ${finalTdArp} (count: ${nextCount})`);
+            } else {
+              // Generate complete TDN/ARD ID from scratch
+              finalTdArp = `${revisionYear}-${municipalityInfo.code}-${barangayCode}-${countCode}`;
+              console.log(`Generated complete TDN/ARD ID during update: ${finalTdArp} (count: ${nextCount})`);
+            }
+            
+            // Double-check that this ID doesn't already exist
+            if (existingIds.has(finalTdArp)) {
+              // If somehow it exists, increment until we find a unique one
+              let attempts = 0;
+              while (existingIds.has(finalTdArp) && attempts < 100) {
+                nextCount++;
+                const newCountCode = String(nextCount).padStart(2, '0');
+                if (needsCountDigit) {
+                  // Replace the count part for offline ID
+                  const baseParts = owner.tdArp.split('-');
+                  finalTdArp = `${baseParts.join('-')}-${newCountCode}`;
+                } else {
+                  finalTdArp = `${revisionYear}-${municipalityInfo.code}-${barangayCode}-${newCountCode}`;
+                }
+                attempts++;
+              }
+              console.log(`Resolved TDN/ARD ID collision during update: ${finalTdArp} (attempt ${attempts})`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to generate TDN/ARD ID during update:', error);
+      // Keep the original tdArp if generation fails
+    }
+  }
+
+  // Update safeOwner with the final TDN/ARD ID
+  safeOwner.tdArp = finalTdArp;
+
   // Auto-regenerate PDF and upload to Appwrite Storage when updating
   let faasPdfUrl = '';
   
   // Check if PDF regeneration should be enabled (can be controlled by environment variable)
   const ENABLE_PDF_REGENERATION = true; // Set to false to disable PDF regeneration during updates
   
+  // Get existing assessment to check for current PDF (declare outside try-catch for broader scope)
+  let existingAssessment: any = null;
+  
   if (ENABLE_PDF_REGENERATION) {
     try {
       console.log('🔄 Auto-regenerating FAAS PDF during assessment update...');
-      
-      // Get existing assessment to check for current PDF
-      let existingAssessment = null;
       try {
         existingAssessment = await databases.getDocument(
           String(config.databaseId),
@@ -1109,7 +1430,7 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
       // Create assessment object in the format expected by FaasPrintService
       const assessmentForPdf = {
         ownerName: owner.owner || '',
-        owner_details: safeOwner,
+        owner_details: safeOwner, // safeOwner already updated with finalTdArp
         building_location: safeLoc,
         land_reference: {
           ...(typeof data?.land_reference === 'string' ? JSON.parse(data.land_reference) : (data?.land_reference || {})),
@@ -1124,7 +1445,7 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
         superseded_assessment: data?.superseded_assessment || {},
         memoranda: data?.memoranda || {},
         pin: owner.pin || '',
-        tdArp: owner.tdArp || '',
+        tdArp: finalTdArp, // Use final TDN/ARD ID with count digit
         transactionCode: owner.transactionCode || '',
         barangay: loc.barangay || '',
         municipality: loc.municipality || '',
@@ -1154,12 +1475,14 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     console.log('📄 PDF regeneration disabled during updates');
   }
 
+  console.log('💾 FINAL TDN/ARD ID FOR UPDATE:', finalTdArp);
+  
   const doc: any = {
     updatedAt: new Date().toISOString(),
     userId: userId || undefined,
     ownerName: owner.owner || '',
     transactionCode: owner.transactionCode || '',
-    tdArp: owner.tdArp || '',
+    tdArp: finalTdArp,
     pin: owner.pin || '',
     barangay: loc.barangay || '',
     municipality: loc.municipality || '',
@@ -1172,8 +1495,65 @@ export async function updateAssessmentDocument(id: string, params: { data: any; 
     additionalItem: data?.additionalItem || '',
     // Store superseded status only - all details are in JSON
     isSuperseded: !!(data?.superseded_assessment?.pin || data?.superseded_assessment?.previousOwner),
-    // Include the regenerated PDF URL if available, or preserve existing one
-    faas: faasPdfUrl || data?.faas || '',
+    // Update FAAS with history in the existing faas field
+    faas: (() => {
+      try {
+        // Parse existing faas data
+        let existingFaasData: { current: string; history: Array<{url: string, timestamp: string, version: number, action: string}> } = { 
+          current: '', 
+          history: [] 
+        };
+        if (existingAssessment?.faas) {
+          try {
+            // Try to parse as new JSON format
+            existingFaasData = JSON.parse(existingAssessment.faas);
+          } catch {
+            // Fallback: treat as old string format
+            existingFaasData = {
+              current: existingAssessment.faas,
+              history: [{
+                url: existingAssessment.faas,
+                timestamp: existingAssessment.$updatedAt || existingAssessment.$createdAt || new Date().toISOString(),
+                version: 1,
+                action: 'created'
+              }]
+            };
+          }
+        }
+        
+        // If we generated a new PDF, add it to history
+        if (faasPdfUrl && faasPdfUrl !== existingFaasData.current) {
+          const newHistoryEntry = {
+            url: faasPdfUrl,
+            timestamp: new Date().toISOString(),
+            version: existingFaasData.history.length + 1,
+            action: 'updated',
+            tdArp: finalTdArp // Store current TDN/ARD ID with this version
+          };
+          existingFaasData.history.push(newHistoryEntry);
+          existingFaasData.current = faasPdfUrl;
+          console.log('📄 Added new PDF to FAAS history:', newHistoryEntry);
+        } else if (faasPdfUrl) {
+          existingFaasData.current = faasPdfUrl;
+        }
+        
+        return JSON.stringify(existingFaasData);
+      } catch (error) {
+        console.warn('⚠️ Error updating FAAS history:', error);
+        // Fallback: create new structure with current PDF
+        return JSON.stringify({
+          current: faasPdfUrl || '',
+          history: faasPdfUrl ? [{
+            url: faasPdfUrl,
+            timestamp: new Date().toISOString(),
+            version: 1,
+            action: 'updated',
+            tdArp: finalTdArp
+          }] : []
+        });
+      }
+    })(),
+    
     owner_details: JSON.stringify(safeOwner || {}),
     building_location: JSON.stringify(safeLoc || {}),
     land_reference: JSON.stringify({

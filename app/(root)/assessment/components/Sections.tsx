@@ -3,6 +3,9 @@ import { View, Text, Image, FlatList, TouchableOpacity, Modal, Dimensions, Scrol
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useFormContext } from 'react-hook-form';
 import images from '@/constants/images';
+import FaasHistoryModal from '@/components/FaasHistoryModal';
+import { FaasPrintService } from '@/components/FaasPrintService';
+import { PRIMARY_COLOR } from '@/constants/colors';
 
 function renderMaterialCheckboxList(obj?: Record<string, any>) {
     if (!obj) return <Text style={{ fontSize: 14, color: '#6b7280' }}>—</Text>;
@@ -203,13 +206,97 @@ export default function Sections({ activeTab }: { activeTab: string }) {
 
     const [isGalleryVisible, setGalleryVisible] = React.useState(false);
     const [selectedIndex, setSelectedIndex] = React.useState(0);
+    const [isFaasHistoryVisible, setFaasHistoryVisible] = React.useState(false);
     const openGallery = (idx: number) => { setSelectedIndex(idx); setGalleryVisible(true); };
     const closeGallery = () => setGalleryVisible(false);
+    const openFaasHistory = () => setFaasHistoryVisible(true);
+    const closeFaasHistory = () => setFaasHistoryVisible(false);
 
     return (
         <View>
             {activeTab === 'overview' && (
                 <View>
+                    {/* Owner Details Section */}
+                    <View style={{ marginTop: 20 }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Owner Details</Text>
+                        <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>TDN/ARD ID</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#2563eb' }}>{assessment?.owner_details?.tdArp || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>Transaction Code</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{assessment?.owner_details?.transactionCode || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>PIN</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{assessment?.owner_details?.pin || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>Owner Name</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{assessment?.owner_details?.owner || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>TIN</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{assessment?.owner_details?.tin || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>Contact</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151' }}>{assessment?.owner_details?.telNo || '—'}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                                <Text style={{ fontSize: 14, color: '#6b7280' }}>Address</Text>
+                                <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', textAlign: 'right', flex: 1, marginLeft: 8 }} numberOfLines={2}>{assessment?.owner_details?.address || '—'}</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* FAAS PDF Section */}
+                    <View style={{ marginTop: 20 }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>FAAS Documents</Text>
+                        <TouchableOpacity
+                            onPress={openFaasHistory}
+                            style={{
+                                backgroundColor: 'white',
+                                borderRadius: 12,
+                                padding: 16,
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 1 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 2,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between'
+                            }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                <View style={{
+                                    backgroundColor: PRIMARY_COLOR,
+                                    borderRadius: 8,
+                                    padding: 8,
+                                    marginRight: 12
+                                }}>
+                                    <Icon name="description" size={20} color="white" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 16, fontWeight: '500', color: '#111827', marginBottom: 2 }}>
+                                        View FAAS PDF History
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                                        {(() => {
+                                            const history = FaasPrintService.getFaasHistory(assessment);
+                                            const count = history.length;
+                                            return count > 0 
+                                                ? `${count} version${count !== 1 ? 's' : ''} available`
+                                                : 'No PDFs generated yet';
+                                        })()}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Icon name="chevron-right" size={20} color="#9ca3af" />
+                        </TouchableOpacity>
+                    </View>
+
                     <View style={{ marginTop: 20 }}>
                         <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#374151', marginBottom: 12 }}>Property Details</Text>
                         <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 }}>
@@ -495,6 +582,13 @@ export default function Sections({ activeTab }: { activeTab: string }) {
                     })()}
                 </View>
             )}
+
+            {/* FAAS History Modal */}
+            <FaasHistoryModal
+                visible={isFaasHistoryVisible}
+                onClose={closeFaasHistory}
+                assessment={assessment}
+            />
         </View>
     );
 }
